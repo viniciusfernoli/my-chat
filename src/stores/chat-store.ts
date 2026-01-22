@@ -7,6 +7,7 @@ interface ChatState {
   messages: Map<string, IMessage[]>;
   typingUsers: Map<string, string[]>; // conversationId -> userIds[]
   onlineUsers: Set<string>;
+  userStatuses: Map<string, string>; // userId -> status (online, offline, busy, away)
 
   // Actions
   setConversations: (conversations: IConversation[]) => void;
@@ -14,6 +15,9 @@ interface ChatState {
   updateConversation: (id: string, updates: Partial<IConversation>) => void;
   removeConversation: (id: string) => void;
   setCurrentConversation: (conversation: IConversation | null) => void;
+  moveConversationToTop: (conversationId: string) => void;
+  incrementUnreadCount: (conversationId: string) => void;
+  resetUnreadCount: (conversationId: string) => void;
   
   setMessages: (conversationId: string, messages: IMessage[]) => void;
   addMessage: (conversationId: string, message: IMessage) => void;
@@ -27,6 +31,8 @@ interface ChatState {
   setOnlineUsers: (userIds: string[]) => void;
   addOnlineUser: (userId: string) => void;
   removeOnlineUser: (userId: string) => void;
+  setUserStatus: (userId: string, status: string) => void;
+  getUserStatus: (userId: string) => string;
   
   reset: () => void;
 }
@@ -37,6 +43,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messages: new Map(),
   typingUsers: new Map(),
   onlineUsers: new Set(),
+  userStatuses: new Map(),
 
   setConversations: (conversations) => set({ conversations }),
   
@@ -66,7 +73,49 @@ export const useChatStore = create<ChatState>((set, get) => ({
         state.currentConversation?.id === id ? null : state.currentConversation,
     })),
   
-  setCurrentConversation: (conversation) => set({ currentConversation: conversation }),
+  setCurrentConversation: (conversation) => {
+    // Resetar unread quando seleciona conversa
+    if (conversation) {
+      get().resetUnreadCount(conversation.id);
+    }
+    set({ currentConversation: conversation });
+  },
+
+  moveConversationToTop: (conversationId) =>
+    set((state) => {
+      const index = state.conversations.findIndex(c => c.id === conversationId);
+      if (index <= 0) return state; // Já está no topo ou não existe
+      
+      const conversation = state.conversations[index];
+      const newConversations = [
+        conversation,
+        ...state.conversations.slice(0, index),
+        ...state.conversations.slice(index + 1),
+      ];
+      
+      return { conversations: newConversations };
+    }),
+
+  incrementUnreadCount: (conversationId) =>
+    set((state) => {
+      // Não incrementar se a conversa está aberta
+      if (state.currentConversation?.id === conversationId) return state;
+      
+      return {
+        conversations: state.conversations.map((c) =>
+          c.id === conversationId 
+            ? { ...c, unreadCount: (c.unreadCount || 0) + 1 }
+            : c
+        ),
+      };
+    }),
+
+  resetUnreadCount: (conversationId) =>
+    set((state) => ({
+      conversations: state.conversations.map((c) =>
+        c.id === conversationId ? { ...c, unreadCount: 0 } : c
+      ),
+    })),
 
   setMessages: (conversationId, messages) =>
     set((state) => {
@@ -149,6 +198,17 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return { onlineUsers: newOnlineUsers };
     }),
 
+  setUserStatus: (userId, status) =>
+    set((state) => {
+      const newStatuses = new Map(state.userStatuses);
+      newStatuses.set(userId, status);
+      return { userStatuses: newStatuses };
+    }),
+
+  getUserStatus: (userId) => {
+    return get().userStatuses.get(userId) || 'offline';
+  },
+
   reset: () =>
     set({
       conversations: [],
@@ -156,5 +216,6 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: new Map(),
       typingUsers: new Map(),
       onlineUsers: new Set(),
+      userStatuses: new Map(),
     }),
 }));

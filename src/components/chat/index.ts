@@ -8,3 +8,4 @@ export { ChatWindow } from './ChatWindow';
 export { NewChatModal } from './NewChatModal';
 export { CreateGroupModal } from './CreateGroupModal';
 export { GroupSettingsModal } from './GroupSettingsModal';
+export { StatusSelector } from './StatusSelector';

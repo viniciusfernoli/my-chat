@@ -13,7 +13,7 @@ interface ConversationListProps {
 
 export function ConversationList({ conversations, onSelect }: ConversationListProps) {
   const { user } = useAuthStore();
-  const { currentConversation, onlineUsers } = useChatStore();
+  const { currentConversation, onlineUsers, getUserStatus } = useChatStore();
 
   if (conversations.length === 0) {
     return (
@@ -88,6 +88,10 @@ export function ConversationList({ conversations, onSelect }: ConversationListPr
         if (!otherParticipant) return null;
 
         const isOnline = onlineUsers.has(otherParticipant.id);
+        const participantStatus = getUserStatus(otherParticipant.id);
+        const displayStatus = isOnline 
+          ? (participantStatus as 'online' | 'away' | 'busy' | 'offline') || 'online'
+          : 'offline';
         const isSelected = currentConversation?.id === conversation.id;
 
         return (
@@ -103,7 +107,7 @@ export function ConversationList({ conversations, onSelect }: ConversationListPr
               src={otherParticipant.avatar}
               name={otherParticipant.nickname}
               size="md"
-              status={isOnline ? 'online' : 'offline'}
+              status={displayStatus}
             />
             <div className="flex-1 min-w-0 text-left">
               <div className="flex items-center justify-between">

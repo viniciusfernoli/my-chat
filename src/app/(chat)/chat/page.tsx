@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { MessageSquare, Plus, Settings, LogOut, Search, Users } from 'lucide-react';
 import { Avatar, Button, Input, Spinner } from '@/components/ui';
-import { ConversationList, ChatWindow, NewChatModal, CreateGroupModal } from '@/components/chat';
+import { ConversationList, ChatWindow, NewChatModal, CreateGroupModal, StatusSelector } from '@/components/chat';
 import { useAuthStore, useChatStore } from '@/stores';
 import { useSocket } from '@/providers/SocketProvider';
 import { IConversation } from '@/types';
@@ -13,7 +13,7 @@ import { cn } from '@/lib/utils';
 export default function ChatPage() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading, logout } = useAuthStore();
-  const { notifyNewConversation } = useSocket();
+  const { notifyNewConversation, updateUserStatus } = useSocket();
   const {
     conversations,
     setConversations,
@@ -27,6 +27,7 @@ export default function ChatPage() {
   const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSidebar, setShowSidebar] = useState(true);
+  const [userStatus, setUserStatus] = useState<'online' | 'away' | 'busy' | 'offline'>('online');
 
   // Verificar autenticação
   useEffect(() => {
@@ -105,6 +106,12 @@ export default function ChatPage() {
     router.push('/auth');
   };
 
+  // Handler para mudança de status
+  const handleStatusChange = (status: 'online' | 'away' | 'busy' | 'offline') => {
+    setUserStatus(status);
+    updateUserStatus(status);
+  };
+
   // Filtrar conversas por busca
   const filteredConversations = conversations.filter((conv) => {
     if (!searchQuery) return true;
@@ -146,13 +153,16 @@ export default function ChatPage() {
               src={user.avatar}
               name={user.nickname}
               size="lg"
-              status="online"
+              status={userStatus}
             />
             <div className="flex-1 min-w-0">
               <h2 className="font-semibold text-white truncate">
                 {user.nickname}
               </h2>
-              <p className="text-xs text-green-400">Online</p>
+              <StatusSelector
+                currentStatus={userStatus}
+                onStatusChange={handleStatusChange}
+              />
             </div>
             <button
               onClick={handleLogout}

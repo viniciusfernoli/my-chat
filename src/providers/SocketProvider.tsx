@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useRef, useCallback, ReactNode } 
 import { io, Socket } from 'socket.io-client';
 import { useAuthStore, useChatStore } from '@/stores';
 import { IMessage, IConversation, IUser } from '@/types';
+import { notificationService } from '@/services/notification-service';
 
 interface SocketContextType {
   socket: Socket | null;
@@ -18,6 +19,7 @@ interface SocketContextType {
   notifyGroupUpdate: (conversationId: string, update: Partial<IConversation>, participantIds: string[]) => void;
   notifyMemberAdded: (conversationId: string, member: IUser) => void;
   notifyMemberRemoved: (conversationId: string, memberId: string) => void;
+  updateUserStatus: (status: string) => void;
 }
 
 const SocketContext = createContext<SocketContextType | null>(null);
@@ -27,6 +29,8 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   const isConnectedRef = useRef(false);
   const { user } = useAuthStore();
   const {
+    conversations,
+    currentConversation,
     addMessage,
     setOnlineUsers,
     removeOnlineUser,
@@ -36,6 +40,9 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     addConversation,
     updateConversation,
     removeConversation,
+    moveConversationToTop,
+    incrementUnreadCount,
+    setUserStatus,
   } = useChatStore();
 
   // Conectar ao socket quando usuário estiver autenticado
@@ -80,9 +87,24 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       setOnlineUsers(userIds);
     });
 
+    // Receber todos os status de usuários
+    socket.on('users:statuses', (statuses: Record<string, string>) => {
+      console.log('📊 Status dos usuários:', statuses);
+      Object.entries(statuses).forEach(([odId, status]) => {
+        setUserStatus(odId, status);
+      });
+    });
+
     socket.on('user:offline', (userId: string) => {
       console.log('👋 Usuário offline:', userId);
       removeOnlineUser(userId);
+      setUserStatus(userId, 'offline');
+    });
+
+    // Receber status de usuário
+    socket.on('user:status', ({ userId, status }: { userId: string; status: string }) => {
+      console.log('📊 Status atualizado:', userId, status);
+      setUserStatus(userId, status);
     });
 
     // Receber nova mensagem
@@ -91,6 +113,32 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       // Não adicionar se foi eu que enviei (já adicionei localmente)
       if (message.senderId !== user.id) {
         addMessage(conversationId, message);
+        
+        // Mover conversa para o topo
+        moveConversationToTop(conversationId);
+        
+        // Incrementar contador de não lidas (se não estiver na conversa)
+        if (currentConversation?.id !== conversationId) {
+          incrementUnreadCount(conversationId);
+        }
+        
+        // Enviar notificação push
+        const userStatus = user.status || 'online';
+        if (notificationService.shouldNotify(userStatus)) {
+          const senderName = message.sender?.nickname || 'Alguém';
+          const messageContent = message.type === 'gif' 
+            ? '🎬 Enviou um GIF' 
+            : message.type === 'image'
+            ? '📷 Enviou uma imagem'
+            : message.content || 'Nova mensagem';
+          
+          notificationService.notifyNewMessage(
+            senderName,
+            messageContent,
+            conversationId,
+            message.sender?.avatar
+          );
+        }
       }
     });
 
@@ -173,7 +221,15 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         isConnectedRef.current = false;
       }
     };
-  }, [user, setOnlineUsers, removeOnlineUser, addMessage, addTypingUser, removeTypingUser, updateMessage, addConversation, updateConversation, removeConversation]);
+  }, [user, conversations, currentConversation, setOnlineUsers, removeOnlineUser, addMessage, addTypingUser, removeTypingUser, updateMessage, addConversation, updateConversation, removeConversation, moveConversationToTop, incrementUnreadCount, setUserStatus]);
+
+  // Registrar Service Worker e solicitar permissão de notificação
+  useEffect(() => {
+    if (user) {
+      notificationService.registerServiceWorker();
+      notificationService.requestPermission();
+    }
+  }, [user]);
 
   // Entrar em uma conversa
   const joinConversation = useCallback((conversationId: string) => {
@@ -260,6 +316,17 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
+  // Atualizar status do usuário
+  const updateUserStatus = useCallback((status: string) => {
+    if (user) {
+      console.log('📊 Atualizando status para:', status);
+      socketRef.current?.emit('user:status', { 
+        userId: user.id, 
+        status,
+      });
+    }
+  }, [user]);
+
   return (
     <SocketContext.Provider
       value={{
@@ -275,6 +342,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         notifyGroupUpdate,
         notifyMemberAdded,
         notifyMemberRemoved,
+        updateUserStatus,
       }}
     >
       {children}
