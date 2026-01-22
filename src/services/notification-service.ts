@@ -17,7 +17,7 @@ export class NotificationService {
     return NotificationService.instance;
   }
 
-  // Solicitar permissão para notificações
+  // Solicitar permissão para notificações (DEVE ser chamado após interação do usuário)
   async requestPermission(): Promise<boolean> {
     if (typeof window === 'undefined' || !('Notification' in window)) {
       console.log('Notificações não suportadas neste navegador');
@@ -29,13 +29,15 @@ export class NotificationService {
     }
 
     if (this.permission === 'denied') {
-      console.log('Permissão para notificações negada');
+      console.log('Permissão para notificações foi negada anteriormente');
       return false;
     }
 
     try {
+      // Isso só funciona se chamado após uma interação do usuário (clique)
       const permission = await Notification.requestPermission();
       this.permission = permission;
+      console.log('Resultado da permissão:', permission);
       return permission === 'granted';
     } catch (error) {
       console.error('Erro ao solicitar permissão:', error);

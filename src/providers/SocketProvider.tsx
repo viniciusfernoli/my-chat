@@ -233,11 +233,11 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     };
   }, [user, setOnlineUsers, removeOnlineUser, addMessage, addTypingUser, removeTypingUser, updateMessage, addConversation, updateConversation, removeConversation, moveConversationToTop, incrementUnreadCount, setUserStatus]);
 
-  // Registrar Service Worker e solicitar permissão de notificação
+  // Registrar Service Worker (não pedir permissão automaticamente - precisa de interação do usuário)
   useEffect(() => {
     if (user) {
       notificationService.registerServiceWorker();
-      notificationService.requestPermission();
+      // Não chamar requestPermission() aqui - navegadores bloqueiam sem interação do usuário
     }
   }, [user]);
 
