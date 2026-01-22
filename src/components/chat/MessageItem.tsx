@@ -237,14 +237,19 @@ export function MessageItem({
       {/* Actions */}
       <div
         className={cn(
-          'flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity',
+          'flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity shrink-0',
           isOwn && 'order-first'
         )}
       >
         {/* Quick reactions */}
         <div className="relative">
           {showReactions && (
-            <div className="absolute bottom-full mb-1 flex gap-1 p-1 bg-dark-700 rounded-full shadow-lg animate-fade-in">
+            <div 
+              className={cn(
+                "absolute bottom-full mb-1 flex gap-1 p-1 bg-dark-700 rounded-full shadow-lg animate-fade-in z-50",
+                isOwn ? "right-0" : "left-0"
+              )}
+            >
               {QUICK_REACTIONS.map((emoji) => (
                 <button
                   key={emoji}
@@ -264,7 +269,7 @@ export function MessageItem({
           </button>
         </div>
 
-        <Dropdown trigger={<MoreVertical size={16} />} items={dropdownItems} />
+        <Dropdown trigger={<MoreVertical size={16} />} items={dropdownItems} align={isOwn ? "left" : "right"} />
       </div>
     </div>
   );

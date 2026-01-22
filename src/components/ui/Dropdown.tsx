@@ -28,7 +28,7 @@ export function Dropdown({ trigger, items, align = 'left' }: DropdownProps) {
     if (!isOpen && triggerRef.current) {
       const rect = triggerRef.current.getBoundingClientRect();
       setCoords({
-        x: align === 'right' ? rect.right : rect.left,
+        x: align === 'left' ? rect.left : rect.right,
         y: rect.bottom + 4,
       });
     }
@@ -62,7 +62,7 @@ export function Dropdown({ trigger, items, align = 'left' }: DropdownProps) {
             ref={dropdownRef}
             className={cn(
               'fixed z-50 min-w-[160px] bg-dark-800 border border-dark-700 rounded-lg shadow-xl py-1 animate-fade-in',
-              align === 'right' && '-translate-x-full'
+              align === 'left' && '-translate-x-full'
             )}
             style={{ left: coords.x, top: coords.y }}
           >
