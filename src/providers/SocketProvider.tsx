@@ -28,12 +28,19 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   const socketRef = useRef<Socket | null>(null);
   const isConnectedRef = useRef(false);
   const { user } = useAuthStore();
+  const chatStoreRef = useRef(useChatStore.getState());
+  
+  // Manter ref atualizada
+  useEffect(() => {
+    return useChatStore.subscribe((state) => {
+      chatStoreRef.current = state;
+    });
+  }, []);
+
   const {
-    conversations,
-    currentConversation,
-    addMessage,
     setOnlineUsers,
     removeOnlineUser,
+    addMessage,
     addTypingUser,
     removeTypingUser,
     updateMessage,
@@ -118,7 +125,8 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         moveConversationToTop(conversationId);
         
         // Incrementar contador de não lidas (se não estiver na conversa)
-        if (currentConversation?.id !== conversationId) {
+        const currentConv = chatStoreRef.current.currentConversation;
+        if (currentConv?.id !== conversationId) {
           incrementUnreadCount(conversationId);
         }
         
@@ -221,7 +229,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         isConnectedRef.current = false;
       }
     };
-  }, [user, conversations, currentConversation, setOnlineUsers, removeOnlineUser, addMessage, addTypingUser, removeTypingUser, updateMessage, addConversation, updateConversation, removeConversation, moveConversationToTop, incrementUnreadCount, setUserStatus]);
+  }, [user, setOnlineUsers, removeOnlineUser, addMessage, addTypingUser, removeTypingUser, updateMessage, addConversation, updateConversation, removeConversation, moveConversationToTop, incrementUnreadCount, setUserStatus]);
 
   // Registrar Service Worker e solicitar permissão de notificação
   useEffect(() => {
