@@ -86,8 +86,9 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
     // Adicionar mensagem localmente
     addMessage(conversation.id, newMessage);
     
-    // Enviar via WebSocket
-    sendMessage(conversation.id, newMessage);
+    // Enviar via WebSocket para todos os participantes
+    const participantIds = conversation.participants.map(p => p.id);
+    sendMessage(conversation.id, newMessage, participantIds);
     
     setReplyTo(null);
     

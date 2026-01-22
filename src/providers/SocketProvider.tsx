@@ -11,7 +11,7 @@ interface SocketContextType {
   isConnected: boolean;
   joinConversation: (conversationId: string) => void;
   leaveConversation: (conversationId: string) => void;
-  sendMessage: (conversationId: string, message: IMessage) => void;
+  sendMessage: (conversationId: string, message: IMessage, participantIds: string[]) => void;
   startTyping: (conversationId: string) => void;
   stopTyping: (conversationId: string) => void;
   reactToMessage: (conversationId: string, messageId: string, emoji: string) => void;
@@ -252,9 +252,9 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   }, []);
 
   // Enviar mensagem
-  const sendMessage = useCallback((conversationId: string, message: IMessage) => {
+  const sendMessage = useCallback((conversationId: string, message: IMessage, participantIds: string[]) => {
     console.log('📤 Enviando mensagem:', message);
-    socketRef.current?.emit('message:send', { conversationId, message });
+    socketRef.current?.emit('message:send', { conversationId, message, participantIds });
   }, []);
 
   // Indicar que está digitando
