@@ -4,7 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { MessageSquare, Plus, Settings, LogOut, Search, Users } from 'lucide-react';
 import { Avatar, Button, Input, Spinner } from '@/components/ui';
-import { ConversationList, ChatWindow, NewChatModal, CreateGroupModal, StatusSelector } from '@/components/chat';
+import { ConversationList, ChatWindow, NewChatModal, CreateGroupModal, StatusSelector, NotificationPrompt } from '@/components/chat';
 import { useAuthStore, useChatStore } from '@/stores';
 import { useSocket } from '@/providers/SocketProvider';
 import { IConversation } from '@/types';
@@ -256,6 +256,9 @@ export default function ChatPage() {
           setShowSidebar(false);
         }}
       />
+
+      {/* Notification permission prompt */}
+      <NotificationPrompt />
     </div>
   );
 }
