@@ -85,7 +85,6 @@ export class NotificationService {
 
     const defaultOptions: NotificationOptions = {
       icon: '/favicon.ico',
-      vibrate: [200, 100, 200],
       requireInteraction: false,
       ...options,
     };
