@@ -3,11 +3,11 @@ export interface IUser {
   id: string;
   nickname: string;
   avatar?: string;
-  status: UserStatus;
+  status?: UserStatus;
   bio?: string;
   publicKey: string;
-  createdAt: Date;
-  lastSeen: Date;
+  createdAt?: Date | string;
+  lastSeen?: Date | string;
 }
 
 export type UserStatus = 'online' | 'offline' | 'away' | 'busy';

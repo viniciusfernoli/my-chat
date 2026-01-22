@@ -2,9 +2,9 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { MessageSquare, Plus, Settings, LogOut, Search } from 'lucide-react';
+import { MessageSquare, Plus, Settings, LogOut, Search, Users } from 'lucide-react';
 import { Avatar, Button, Input, Spinner } from '@/components/ui';
-import { ConversationList, ChatWindow, NewChatModal } from '@/components/chat';
+import { ConversationList, ChatWindow, NewChatModal, CreateGroupModal } from '@/components/chat';
 import { useAuthStore, useChatStore } from '@/stores';
 import { IConversation } from '@/types';
 import { cn } from '@/lib/utils';
@@ -22,6 +22,7 @@ export default function ChatPage() {
 
   const [isLoading, setIsLoading] = useState(true);
   const [showNewChat, setShowNewChat] = useState(false);
+  const [showCreateGroup, setShowCreateGroup] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [showSidebar, setShowSidebar] = useState(true);
 
@@ -100,6 +101,13 @@ export default function ChatPage() {
   // Filtrar conversas por busca
   const filteredConversations = conversations.filter((conv) => {
     if (!searchQuery) return true;
+    
+    // Para grupos, buscar pelo nome
+    if (conv.isGroup) {
+      return conv.name?.toLowerCase().includes(searchQuery.toLowerCase());
+    }
+    
+    // Para DMs, buscar pelo nome do outro participante
     const otherParticipant = conv.participants.find((p) => p.id !== user?.id);
     return otherParticipant?.nickname
       .toLowerCase()
@@ -157,10 +165,19 @@ export default function ChatPage() {
             onChange={(e) => setSearchQuery(e.target.value)}
             icon={<Search size={16} />}
           />
-          <Button className="w-full" onClick={() => setShowNewChat(true)}>
-            <Plus size={16} className="mr-2" />
-            Nova Conversa
-          </Button>
+          <div className="flex gap-2">
+            <Button className="flex-1" onClick={() => setShowNewChat(true)}>
+              <Plus size={16} className="mr-2" />
+              Nova Conversa
+            </Button>
+            <Button 
+              variant="secondary" 
+              onClick={() => setShowCreateGroup(true)}
+              title="Criar Grupo"
+            >
+              <Users size={16} />
+            </Button>
+          </div>
         </div>
 
         {/* Conversations */}
@@ -209,6 +226,17 @@ export default function ChatPage() {
         isOpen={showNewChat}
         onClose={() => setShowNewChat(false)}
         onSelectUser={handleNewChat}
+      />
+
+      {/* Create group modal */}
+      <CreateGroupModal
+        isOpen={showCreateGroup}
+        onClose={() => setShowCreateGroup(false)}
+        onGroupCreated={(group) => {
+          addConversation(group);
+          setCurrentConversation(group);
+          setShowSidebar(false);
+        }}
       />
     </div>
   );

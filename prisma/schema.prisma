@@ -69,6 +69,10 @@ model FriendRequest {
 // Modelo de Conversa
 model Conversation {
   id        String   @id @default(cuid())
+  name      String?  // Nome do grupo (null para DMs)
+  avatar    String?  // Avatar do grupo
+  isGroup   Boolean  @default(false)
+  ownerId   String?  // Dono do grupo (null para DMs)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 

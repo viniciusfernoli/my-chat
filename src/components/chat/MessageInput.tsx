@@ -10,6 +10,7 @@ import { cn } from '@/lib/utils';
 
 interface MessageInputProps {
   onSendMessage: (content: string, type: 'text' | 'gif' | 'image', gifUrl?: string) => void;
+  onTyping?: () => void;
   replyTo?: IMessage | null;
   onCancelReply?: () => void;
   disabled?: boolean;
@@ -17,6 +18,7 @@ interface MessageInputProps {
 
 export function MessageInput({
   onSendMessage,
+  onTyping,
   replyTo,
   onCancelReply,
   disabled = false,
@@ -47,6 +49,11 @@ export function MessageInput({
       e.preventDefault();
       handleSubmit();
     }
+  };
+  
+  const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
+    setMessage(e.target.value);
+    onTyping?.();
   };
 
   const handleGifSelect = async (gif: IGif) => {
@@ -139,7 +146,7 @@ export function MessageInput({
           <textarea
             ref={inputRef}
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={handleChange}
             onKeyDown={handleKeyDown}
             placeholder="Digite uma mensagem..."
             className="w-full bg-dark-700 border border-dark-600 rounded-xl px-4 py-3 text-white placeholder-dark-400 resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent min-h-[48px] max-h-32"

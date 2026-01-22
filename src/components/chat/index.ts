@@ -6,3 +6,4 @@ export { MessageList } from './MessageList';
 export { ConversationList } from './ConversationList';
 export { ChatWindow } from './ChatWindow';
 export { NewChatModal } from './NewChatModal';
+export { CreateGroupModal } from './CreateGroupModal';

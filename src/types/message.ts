@@ -3,8 +3,11 @@ import { IUser } from './user';
 // Tipos de Mensagem
 export interface IMessageReply {
   id: string;
-  encryptedContent: string;
-  nonce: string;
+  content?: string;
+  encryptedContent?: string;
+  nonce?: string;
+  senderId: string;
+  senderNickname?: string;
   sender?: {
     id: string;
     nickname: string;
@@ -17,7 +20,7 @@ export interface IMessage {
   senderId: string;
   sender?: IUser;
   content: string;
-  encryptedContent: string;
+  encryptedContent?: string;
   type: MessageType;
   mediaUrl?: string;
   gifUrl?: string;
@@ -25,9 +28,9 @@ export interface IMessage {
   replyTo?: IMessageReply;
   replyToMessage?: IMessage;
   isEdited: boolean;
-  isDeleted: boolean;
-  createdAt: Date;
-  updatedAt: Date;
+  isDeleted?: boolean;
+  createdAt: string | Date;
+  updatedAt: string | Date;
 }
 
 export type MessageType = 'text' | 'image' | 'gif' | 'file';
@@ -39,17 +42,21 @@ export interface IReaction {
   userId: string;
   user?: IUser;
   emoji: string;
-  createdAt: Date;
+  createdAt: string | Date;
 }
 
 // Tipos de Conversa
 export interface IConversation {
   id: string;
+  name?: string;         // Nome do grupo
+  avatar?: string;       // Avatar do grupo
+  isGroup: boolean;      // Se é grupo ou DM
+  ownerId?: string;      // Dono do grupo
   participants: IUser[];
   lastMessage?: IMessage;
   unreadCount: number;
-  createdAt: Date;
-  updatedAt: Date;
+  createdAt: string | Date;
+  updatedAt: string | Date;
 }
 
 // Payload para envio de mensagem

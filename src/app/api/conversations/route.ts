@@ -54,8 +54,13 @@ export async function GET(request: NextRequest) {
 
     const formattedConversations = conversations.map((conv: ConversationType) => ({
       id: conv.id,
+      name: conv.name,
+      avatar: conv.avatar,
+      isGroup: conv.isGroup,
+      ownerId: conv.ownerId,
       participants: conv.participants.map((p: ParticipantType) => p.user),
       lastMessage: conv.messages[0] || null,
+      unreadCount: 0,
       createdAt: conv.createdAt,
       updatedAt: conv.updatedAt,
     }));
@@ -104,9 +109,10 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Verificar se já existe conversa entre os dois
+    // Verificar se já existe conversa entre os dois (apenas DMs, não grupos)
     const existingConversation = await prisma.conversation.findFirst({
       where: {
+        isGroup: false,
         AND: [
           { participants: { some: { userId } } },
           { participants: { some: { userId: participantId } } },
@@ -133,15 +139,21 @@ export async function POST(request: NextRequest) {
       type ExistingParticipant = typeof existingConversation.participants[number];
       return NextResponse.json({
         id: existingConversation.id,
+        name: existingConversation.name,
+        avatar: existingConversation.avatar,
+        isGroup: existingConversation.isGroup,
+        ownerId: existingConversation.ownerId,
         participants: existingConversation.participants.map((p: ExistingParticipant) => p.user),
+        unreadCount: 0,
         createdAt: existingConversation.createdAt,
         updatedAt: existingConversation.updatedAt,
       });
     }
 
-    // Criar nova conversa
+    // Criar nova conversa (DM)
     const conversation = await prisma.conversation.create({
       data: {
+        isGroup: false,
         participants: {
           create: [
             { userId },
@@ -169,7 +181,12 @@ export async function POST(request: NextRequest) {
     type NewParticipant = typeof conversation.participants[number];
     return NextResponse.json({
       id: conversation.id,
+      name: conversation.name,
+      avatar: conversation.avatar,
+      isGroup: conversation.isGroup,
+      ownerId: conversation.ownerId,
       participants: conversation.participants.map((p: NewParticipant) => p.user),
+      unreadCount: 0,
       createdAt: conversation.createdAt,
       updatedAt: conversation.updatedAt,
     });
