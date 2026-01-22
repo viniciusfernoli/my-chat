@@ -1,0 +1,140 @@
+// Configuração do Prisma para PostgreSQL (Neon)
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+}
+
+// Modelo de Usuário
+model User {
+  id           String   @id @default(cuid())
+  nickname     String   @unique
+  avatar       String?
+  bio          String?
+  status       String   @default("offline")
+  publicKey    String   @unique
+  secretKeyHash String  @unique // Hash da secret key para autenticação
+  createdAt    DateTime @default(now())
+  lastSeen     DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  // Relacionamentos
+  sentMessages     Message[]      @relation("SentMessages")
+  conversations    ConversationParticipant[]
+  reactions        Reaction[]
+  friendRequestsSent     FriendRequest[] @relation("FriendRequestsSent")
+  friendRequestsReceived FriendRequest[] @relation("FriendRequestsReceived")
+  friends          Friendship[]   @relation("UserFriends")
+  friendOf         Friendship[]   @relation("FriendOf")
+
+  @@index([nickname])
+  @@index([publicKey])
+}
+
+// Modelo de Amizade
+model Friendship {
+  id        String   @id @default(cuid())
+  userId    String
+  friendId  String
+  createdAt DateTime @default(now())
+
+  user   User @relation("UserFriends", fields: [userId], references: [id], onDelete: Cascade)
+  friend User @relation("FriendOf", fields: [friendId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, friendId])
+  @@index([userId])
+  @@index([friendId])
+}
+
+// Modelo de Solicitação de Amizade
+model FriendRequest {
+  id         String   @id @default(cuid())
+  senderId   String
+  receiverId String
+  status     String   @default("pending") // pending, accepted, rejected
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  sender   User @relation("FriendRequestsSent", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("FriendRequestsReceived", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@unique([senderId, receiverId])
+  @@index([senderId])
+  @@index([receiverId])
+}
+
+// Modelo de Conversa
+model Conversation {
+  id        String   @id @default(cuid())
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relacionamentos
+  participants ConversationParticipant[]
+  messages     Message[]
+
+  @@index([updatedAt])
+}
+
+// Participantes da Conversa (relação N:N)
+model ConversationParticipant {
+  id             String   @id @default(cuid())
+  conversationId String
+  userId         String
+  joinedAt       DateTime @default(now())
+  lastReadAt     DateTime @default(now())
+
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([conversationId, userId])
+  @@index([conversationId])
+  @@index([userId])
+}
+
+// Modelo de Mensagem
+model Message {
+  id               String   @id @default(cuid())
+  conversationId   String
+  senderId         String
+  encryptedContent String   // Conteúdo criptografado
+  nonce            String   // Nonce para descriptografia
+  type             String   @default("text") // text, image, gif, file
+  mediaUrl         String?
+  gifUrl           String?
+  replyToId        String?
+  isEdited         Boolean  @default(false)
+  isDeleted        Boolean  @default(false)
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  // Relacionamentos
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User         @relation("SentMessages", fields: [senderId], references: [id], onDelete: Cascade)
+  replyTo      Message?     @relation("MessageReplies", fields: [replyToId], references: [id], onDelete: SetNull)
+  replies      Message[]    @relation("MessageReplies")
+  reactions    Reaction[]
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([createdAt])
+}
+
+// Modelo de Reação
+model Reaction {
+  id        String   @id @default(cuid())
+  messageId String
+  userId    String
+  emoji     String
+  createdAt DateTime @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([messageId, userId, emoji])
+  @@index([messageId])
+  @@index([userId])
+}
