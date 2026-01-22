@@ -12,6 +12,7 @@ interface ChatState {
   setConversations: (conversations: IConversation[]) => void;
   addConversation: (conversation: IConversation) => void;
   updateConversation: (id: string, updates: Partial<IConversation>) => void;
+  removeConversation: (id: string) => void;
   setCurrentConversation: (conversation: IConversation | null) => void;
   
   setMessages: (conversationId: string, messages: IMessage[]) => void;
@@ -40,9 +41,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setConversations: (conversations) => set({ conversations }),
   
   addConversation: (conversation) =>
-    set((state) => ({
-      conversations: [conversation, ...state.conversations],
-    })),
+    set((state) => {
+      // Verificar se já existe
+      const exists = state.conversations.some(c => c.id === conversation.id);
+      if (exists) return state;
+      return { conversations: [conversation, ...state.conversations] };
+    }),
   
   updateConversation: (id, updates) =>
     set((state) => ({
@@ -53,6 +57,13 @@ export const useChatStore = create<ChatState>((set, get) => ({
         state.currentConversation?.id === id
           ? { ...state.currentConversation, ...updates }
           : state.currentConversation,
+    })),
+
+  removeConversation: (id) =>
+    set((state) => ({
+      conversations: state.conversations.filter((c) => c.id !== id),
+      currentConversation:
+        state.currentConversation?.id === id ? null : state.currentConversation,
     })),
   
   setCurrentConversation: (conversation) => set({ currentConversation: conversation }),

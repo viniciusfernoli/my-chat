@@ -10,7 +10,7 @@ export interface ModalProps {
   onClose: () => void;
   title?: string;
   children: React.ReactNode;
-  size?: 'sm' | 'md' | 'lg' | 'xl';
+  size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
   className?: string;
 }
 
@@ -19,6 +19,7 @@ const sizeClasses = {
   md: 'max-w-md',
   lg: 'max-w-lg',
   xl: 'max-w-xl',
+  full: 'max-w-full mx-2',
 };
 
 export function Modal({
@@ -54,7 +55,7 @@ export function Modal({
   if (!mounted || !isOpen) return null;
 
   return createPortal(
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/60 backdrop-blur-sm"
@@ -64,18 +65,20 @@ export function Modal({
       {/* Modal */}
       <div
         className={cn(
-          'relative w-full bg-dark-800 rounded-xl shadow-2xl animate-fade-in',
+          'relative w-full bg-dark-800 shadow-2xl animate-fade-in',
+          'rounded-t-xl sm:rounded-xl',
+          'max-h-[90vh] sm:max-h-[85vh] overflow-hidden flex flex-col',
           sizeClasses[size],
           className
         )}
       >
         {/* Header */}
         {title && (
-          <div className="flex items-center justify-between p-4 border-b border-dark-700">
+          <div className="flex items-center justify-between p-4 border-b border-dark-700 shrink-0">
             <h2 className="text-lg font-semibold text-white">{title}</h2>
             <button
               onClick={onClose}
-              className="p-1 rounded-lg text-dark-400 hover:text-white hover:bg-dark-700 transition-colors"
+              className="p-2 -mr-2 rounded-lg text-dark-400 hover:text-white hover:bg-dark-700 transition-colors"
             >
               <X size={20} />
             </button>
@@ -83,7 +86,7 @@ export function Modal({
         )}
 
         {/* Content */}
-        <div className={cn('p-4', !title && 'pt-8')}>{children}</div>
+        <div className={cn('p-4 overflow-y-auto flex-1', !title && 'pt-8')}>{children}</div>
       </div>
     </div>,
     document.body

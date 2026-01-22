@@ -6,12 +6,14 @@ import { MessageSquare, Plus, Settings, LogOut, Search, Users } from 'lucide-rea
 import { Avatar, Button, Input, Spinner } from '@/components/ui';
 import { ConversationList, ChatWindow, NewChatModal, CreateGroupModal } from '@/components/chat';
 import { useAuthStore, useChatStore } from '@/stores';
+import { useSocket } from '@/providers/SocketProvider';
 import { IConversation } from '@/types';
 import { cn } from '@/lib/utils';
 
 export default function ChatPage() {
   const router = useRouter();
   const { user, isAuthenticated, isLoading: authLoading, logout } = useAuthStore();
+  const { notifyNewConversation } = useSocket();
   const {
     conversations,
     setConversations,
@@ -83,6 +85,11 @@ export default function ChatPage() {
         const existing = conversations.find((c) => c.id === conversation.id);
         if (!existing) {
           addConversation(conversation);
+          // Notificar o outro participante via WebSocket
+          const participantIds = conversation.participants
+            .filter((p: { id: string }) => p.id !== user.id)
+            .map((p: { id: string }) => p.id);
+          notifyNewConversation(conversation, participantIds);
         }
         
         setCurrentConversation(conversation);
@@ -123,17 +130,17 @@ export default function ChatPage() {
   }
 
   return (
-    <div className="h-screen flex bg-dark-950">
+    <div className="h-screen flex bg-dark-950 safe-area-top safe-area-bottom">
       {/* Sidebar */}
       <div
         className={cn(
-          'w-full md:w-80 flex flex-col bg-dark-800 border-r border-dark-700',
+          'w-full md:w-80 lg:w-96 flex flex-col bg-dark-800 border-r border-dark-700',
           'absolute md:relative inset-0 z-10 transition-transform duration-300',
           !showSidebar && '-translate-x-full md:translate-x-0'
         )}
       >
         {/* User header */}
-        <div className="p-4 border-b border-dark-700">
+        <div className="p-3 sm:p-4 border-b border-dark-700">
           <div className="flex items-center gap-3">
             <Avatar
               src={user.avatar}
@@ -158,7 +165,7 @@ export default function ChatPage() {
         </div>
 
         {/* Search and new chat */}
-        <div className="p-4 space-y-3">
+        <div className="p-3 sm:p-4 space-y-3">
           <Input
             placeholder="Buscar conversas..."
             value={searchQuery}
@@ -166,9 +173,9 @@ export default function ChatPage() {
             icon={<Search size={16} />}
           />
           <div className="flex gap-2">
-            <Button className="flex-1" onClick={() => setShowNewChat(true)}>
-              <Plus size={16} className="mr-2" />
-              Nova Conversa
+            <Button className="flex-1 text-sm sm:text-base" onClick={() => setShowNewChat(true)}>
+              <Plus size={16} className="mr-1 sm:mr-2" />
+              <span className="hidden xs:inline">Nova</span> Conversa
             </Button>
             <Button 
               variant="secondary" 

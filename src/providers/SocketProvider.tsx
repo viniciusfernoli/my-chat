@@ -3,7 +3,7 @@
 import { createContext, useContext, useEffect, useRef, useCallback, ReactNode } from 'react';
 import { io, Socket } from 'socket.io-client';
 import { useAuthStore, useChatStore } from '@/stores';
-import { IMessage } from '@/types';
+import { IMessage, IConversation, IUser } from '@/types';
 
 interface SocketContextType {
   socket: Socket | null;
@@ -14,6 +14,10 @@ interface SocketContextType {
   startTyping: (conversationId: string) => void;
   stopTyping: (conversationId: string) => void;
   reactToMessage: (conversationId: string, messageId: string, emoji: string) => void;
+  notifyNewConversation: (conversation: IConversation, participantIds: string[]) => void;
+  notifyGroupUpdate: (conversationId: string, update: Partial<IConversation>, participantIds: string[]) => void;
+  notifyMemberAdded: (conversationId: string, member: IUser) => void;
+  notifyMemberRemoved: (conversationId: string, memberId: string) => void;
 }
 
 const SocketContext = createContext<SocketContextType | null>(null);
@@ -29,6 +33,9 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     addTypingUser,
     removeTypingUser,
     updateMessage,
+    addConversation,
+    updateConversation,
+    removeConversation,
   } = useChatStore();
 
   // Conectar ao socket quando usuário estiver autenticado
@@ -103,6 +110,53 @@ export function SocketProvider({ children }: { children: ReactNode }) {
       updateMessage(conversationId, messageId, { reactions });
     });
 
+    // Nova conversa recebida
+    socket.on('conversation:new', ({ conversation }) => {
+      console.log('📬 Nova conversa recebida:', conversation);
+      addConversation(conversation);
+    });
+
+    // Grupo atualizado
+    socket.on('group:update', ({ conversationId, update }) => {
+      console.log('📝 Grupo atualizado:', conversationId, update);
+      updateConversation(conversationId, update);
+    });
+
+    // Membro adicionado ao grupo (notificação para o membro adicionado)
+    socket.on('group:member:added', async ({ conversationId }) => {
+      console.log('➕ Você foi adicionado ao grupo:', conversationId);
+      // Recarregar conversas para obter o grupo completo
+      try {
+        const res = await fetch(`/api/conversations/${conversationId}`, {
+          headers: { 'x-user-id': user.id },
+        });
+        if (res.ok) {
+          const conversation = await res.json();
+          addConversation(conversation);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar conversa:', error);
+      }
+    });
+
+    // Novo membro no grupo (para membros existentes)
+    socket.on('group:member:new', ({ conversationId, member }) => {
+      console.log('👤 Novo membro no grupo:', conversationId, member);
+      // Atualizar lista de participantes - será feito ao recarregar a conversa
+    });
+
+    // Membro removido (notificação para o membro removido)
+    socket.on('group:member:removed', ({ conversationId }) => {
+      console.log('➖ Você foi removido do grupo:', conversationId);
+      removeConversation(conversationId);
+    });
+
+    // Membro saiu do grupo (para membros restantes)
+    socket.on('group:member:left', ({ conversationId, memberId }) => {
+      console.log('👋 Membro saiu do grupo:', conversationId, memberId);
+      // Atualizar lista de participantes - será feito ao recarregar a conversa
+    });
+
     socket.on('disconnect', () => {
       console.log('❌ Socket desconectado');
       isConnectedRef.current = false;
@@ -119,7 +173,7 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         isConnectedRef.current = false;
       }
     };
-  }, [user, setOnlineUsers, removeOnlineUser, addMessage, addTypingUser, removeTypingUser, updateMessage]);
+  }, [user, setOnlineUsers, removeOnlineUser, addMessage, addTypingUser, removeTypingUser, updateMessage, addConversation, updateConversation, removeConversation]);
 
   // Entrar em uma conversa
   const joinConversation = useCallback((conversationId: string) => {
@@ -170,6 +224,42 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     }
   }, [user]);
 
+  // Notificar nova conversa
+  const notifyNewConversation = useCallback((conversation: IConversation, participantIds: string[]) => {
+    console.log('📢 Notificando nova conversa:', conversation.id);
+    socketRef.current?.emit('conversation:new', { conversation, participantIds });
+  }, []);
+
+  // Notificar atualização de grupo
+  const notifyGroupUpdate = useCallback((conversationId: string, update: Partial<IConversation>, participantIds: string[]) => {
+    console.log('📝 Notificando atualização do grupo:', conversationId);
+    socketRef.current?.emit('group:update', { conversationId, update, participantIds });
+  }, []);
+
+  // Notificar membro adicionado
+  const notifyMemberAdded = useCallback((conversationId: string, member: IUser) => {
+    if (user) {
+      console.log('➕ Notificando membro adicionado:', member.id);
+      socketRef.current?.emit('group:member:add', { 
+        conversationId, 
+        member, 
+        addedBy: { id: user.id, nickname: user.nickname } 
+      });
+    }
+  }, [user]);
+
+  // Notificar membro removido
+  const notifyMemberRemoved = useCallback((conversationId: string, memberId: string) => {
+    if (user) {
+      console.log('➖ Notificando membro removido:', memberId);
+      socketRef.current?.emit('group:member:remove', { 
+        conversationId, 
+        memberId, 
+        removedBy: { id: user.id, nickname: user.nickname } 
+      });
+    }
+  }, [user]);
+
   return (
     <SocketContext.Provider
       value={{
@@ -181,6 +271,10 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         startTyping,
         stopTyping,
         reactToMessage,
+        notifyNewConversation,
+        notifyGroupUpdate,
+        notifyMemberAdded,
+        notifyMemberRemoved,
       }}
     >
       {children}

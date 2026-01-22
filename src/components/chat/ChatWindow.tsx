@@ -1,10 +1,11 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Phone, Video, MoreVertical, ArrowLeft } from 'lucide-react';
+import { Phone, Video, MoreVertical, ArrowLeft, Settings } from 'lucide-react';
 import { Avatar, Dropdown } from '@/components/ui';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
+import { GroupSettingsModal } from './GroupSettingsModal';
 import { IConversation, IMessage } from '@/types';
 import { useAuthStore, useChatStore } from '@/stores';
 import { useSocket } from '@/hooks/useSocket';
@@ -16,9 +17,10 @@ interface ChatWindowProps {
 
 export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
   const { user } = useAuthStore();
-  const { messages, addMessage, onlineUsers, updateMessage } = useChatStore();
+  const { messages, addMessage, onlineUsers, updateMessage, setCurrentConversation } = useChatStore();
   const [replyTo, setReplyTo] = useState<IMessage | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [showGroupSettings, setShowGroupSettings] = useState(false);
   const { joinConversation, leaveConversation, sendMessage, startTyping, stopTyping, reactToMessage } = useSocket();
   const typingTimeout = useRef<NodeJS.Timeout | null>(null);
 
@@ -60,8 +62,9 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
       id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
       conversationId: conversation.id,
       senderId: user.id,
-      content: type === 'gif' ? (gifUrl || content) : content,
+      content: type === 'gif' ? 'GIF' : content,
       type,
+      gifUrl: type === 'gif' ? gifUrl : undefined,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       isEdited: false,
@@ -159,6 +162,10 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
       label: 'Ver perfil',
       onClick: () => {},
     },
+    ...(conversation.isGroup ? [{
+      label: 'Configurações do grupo',
+      onClick: () => setShowGroupSettings(true),
+    }] : []),
     {
       label: 'Limpar conversa',
       onClick: () => {},
@@ -231,6 +238,19 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
         replyTo={replyTo}
         onCancelReply={() => setReplyTo(null)}
       />
+
+      {/* Group Settings Modal */}
+      {conversation.isGroup && (
+        <GroupSettingsModal
+          isOpen={showGroupSettings}
+          onClose={() => setShowGroupSettings(false)}
+          conversation={conversation}
+          onGroupDeleted={() => {
+            setCurrentConversation(null);
+            onBack?.();
+          }}
+        />
+      )}
     </div>
   );
 }
