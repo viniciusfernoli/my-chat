@@ -3,10 +3,18 @@ export class NotificationService {
   private static instance: NotificationService;
   private permission: NotificationPermission = 'default';
   private swRegistration: ServiceWorkerRegistration | null = null;
+  private audioContext: AudioContext | null = null;
 
   private constructor() {
     if (typeof window !== 'undefined' && 'Notification' in window) {
       this.permission = Notification.permission;
+    }
+  }
+
+  // Inicializar AudioContext (precisa de interação do usuário)
+  private initAudioContext(): void {
+    if (!this.audioContext && typeof window !== 'undefined') {
+      this.audioContext = new (window.AudioContext || (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
     }
   }
 
@@ -79,6 +87,44 @@ export class NotificationService {
     return document.visibilityState === 'visible';
   }
 
+  // Tocar som de notificação (estilo Discord)
+  playNotificationSound(): void {
+    try {
+      this.initAudioContext();
+      if (!this.audioContext) return;
+
+      // Criar som similar ao Discord (dois tons curtos)
+      const now = this.audioContext.currentTime;
+      
+      // Primeiro tom (mais alto)
+      const osc1 = this.audioContext.createOscillator();
+      const gain1 = this.audioContext.createGain();
+      osc1.connect(gain1);
+      gain1.connect(this.audioContext.destination);
+      osc1.frequency.value = 880; // A5
+      osc1.type = 'sine';
+      gain1.gain.setValueAtTime(0.3, now);
+      gain1.gain.exponentialRampToValueAtTime(0.01, now + 0.1);
+      osc1.start(now);
+      osc1.stop(now + 0.1);
+
+      // Segundo tom (mais baixo)
+      const osc2 = this.audioContext.createOscillator();
+      const gain2 = this.audioContext.createGain();
+      osc2.connect(gain2);
+      gain2.connect(this.audioContext.destination);
+      osc2.frequency.value = 587.33; // D5
+      osc2.type = 'sine';
+      gain2.gain.setValueAtTime(0.3, now + 0.08);
+      gain2.gain.exponentialRampToValueAtTime(0.01, now + 0.2);
+      osc2.start(now + 0.08);
+      osc2.stop(now + 0.2);
+
+    } catch (error) {
+      console.log('Não foi possível tocar o som:', error);
+    }
+  }
+
   // Enviar notificação
   async notify(
     title: string,
@@ -126,6 +172,9 @@ export class NotificationService {
     const truncatedMessage = message.length > 100 
       ? message.substring(0, 100) + '...' 
       : message;
+
+    // Tocar som de notificação
+    this.playNotificationSound();
 
     await this.notify(`${senderName}`, {
       body: truncatedMessage,
