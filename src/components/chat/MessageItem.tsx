@@ -246,7 +246,7 @@ export function MessageItem({
           {showReactions && (
             <div 
               className={cn(
-                "absolute bottom-full mb-1 flex gap-1 p-1 bg-dark-700 rounded-full shadow-lg animate-fade-in z-50",
+                "absolute top-full mt-1 flex gap-1 p-1 bg-dark-700 rounded-full shadow-lg animate-fade-in z-[100]",
                 isOwn ? "right-0" : "left-0"
               )}
             >

@@ -9,7 +9,7 @@ import { notificationService } from '@/services/notification-service';
 interface SocketContextType {
   socket: Socket | null;
   isConnected: boolean;
-  joinConversation: (conversationId: string) => void;
+  joinConversation: (conversationId: string, participantIds?: string[]) => void;
   leaveConversation: (conversationId: string) => void;
   sendMessage: (conversationId: string, message: IMessage, participantIds: string[]) => void;
   startTyping: (conversationId: string) => void;
@@ -242,9 +242,9 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   }, [user]);
 
   // Entrar em uma conversa
-  const joinConversation = useCallback((conversationId: string) => {
+  const joinConversation = useCallback((conversationId: string, participantIds?: string[]) => {
     console.log('🚪 Entrando na conversa:', conversationId);
-    socketRef.current?.emit('conversation:join', conversationId);
+    socketRef.current?.emit('conversation:join', { conversationId, participantIds });
   }, []);
 
   // Sair de uma conversa

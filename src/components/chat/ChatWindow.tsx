@@ -39,7 +39,9 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
   // Entrar na sala da conversa ao abrir
   useEffect(() => {
     if (conversation.id) {
-      joinConversation(conversation.id);
+      // Enviar participantIds para validação no servidor
+      const participantIds = conversation.participants.map(p => p.id);
+      joinConversation(conversation.id, participantIds);
       setIsLoading(false);
     }
     
@@ -48,7 +50,7 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
         leaveConversation(conversation.id);
       }
     };
-  }, [conversation.id, joinConversation, leaveConversation]);
+  }, [conversation.id, conversation.participants, joinConversation, leaveConversation]);
 
   const handleSendMessage = async (
     content: string,
