@@ -53,7 +53,7 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
   const handleSendMessage = async (
     content: string,
     type: 'text' | 'gif' | 'image',
-    gifUrl?: string
+    mediaUrl?: string
   ) => {
     if (!user) return;
 
@@ -64,7 +64,8 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
       senderId: user.id,
       content: type === 'gif' ? 'GIF' : content,
       type,
-      gifUrl: type === 'gif' ? gifUrl : undefined,
+      gifUrl: type === 'gif' ? mediaUrl : undefined,
+      mediaUrl: type === 'image' ? mediaUrl : undefined,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       isEdited: false,

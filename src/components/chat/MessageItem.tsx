@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import Image from 'next/image';
-import { MoreVertical, Reply, Smile, Trash2 } from 'lucide-react';
+import { MoreVertical, Reply, Smile, Trash2, X, Download, ZoomIn } from 'lucide-react';
 import { Avatar, Dropdown, Tooltip } from '@/components/ui';
 import { IMessage, IReaction } from '@/types';
 import { cn, formatTime } from '@/lib/utils';
@@ -18,6 +18,64 @@ interface MessageItemProps {
 
 const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '😡'];
 
+// Modal de imagem em tela cheia
+function ImageModal({ 
+  src, 
+  alt, 
+  onClose 
+}: { 
+  src: string; 
+  alt: string; 
+  onClose: () => void;
+}) {
+  const handleDownload = () => {
+    const link = document.createElement('a');
+    link.href = src;
+    link.download = `image-${Date.now()}.png`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  return (
+    <div 
+      className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <div className="absolute top-4 right-4 flex gap-2">
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            handleDownload();
+          }}
+          className="p-2 bg-dark-800/80 rounded-lg text-white hover:bg-dark-700 transition-colors"
+          title="Baixar imagem"
+        >
+          <Download size={20} />
+        </button>
+        <button
+          onClick={onClose}
+          className="p-2 bg-dark-800/80 rounded-lg text-white hover:bg-dark-700 transition-colors"
+          title="Fechar"
+        >
+          <X size={20} />
+        </button>
+      </div>
+      <div 
+        className="relative max-w-[90vw] max-h-[90vh]"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src={src}
+          alt={alt}
+          className="max-w-full max-h-[90vh] object-contain rounded-lg"
+        />
+      </div>
+    </div>
+  );
+}
+
 export function MessageItem({
   message,
   onReply,
@@ -27,6 +85,7 @@ export function MessageItem({
 }: MessageItemProps) {
   const { user } = useAuthStore();
   const [showReactions, setShowReactions] = useState(false);
+  const [showImageModal, setShowImageModal] = useState(false);
   const isOwn = message.senderId === user?.id;
 
   // Agrupar reações por emoji
@@ -118,14 +177,36 @@ export function MessageItem({
               />
             </div>
           ) : message.type === 'image' && message.mediaUrl ? (
-            <div className="relative w-64 h-48 rounded-lg overflow-hidden">
-              <Image
-                src={message.mediaUrl}
-                alt="Imagem"
-                fill
-                className="object-cover"
-              />
-            </div>
+            <>
+              <div 
+                className="relative w-64 max-w-full rounded-lg overflow-hidden cursor-pointer group"
+                onClick={() => setShowImageModal(true)}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src={message.mediaUrl}
+                  alt="Imagem"
+                  className="max-w-full h-auto rounded-lg"
+                  style={{ maxHeight: '300px' }}
+                />
+                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/30 transition-colors flex items-center justify-center">
+                  <ZoomIn 
+                    size={32} 
+                    className="text-white opacity-0 group-hover:opacity-100 transition-opacity drop-shadow-lg" 
+                  />
+                </div>
+              </div>
+              {message.content && message.content !== 'Imagem' && (
+                <p className="mt-2 whitespace-pre-wrap break-words">{message.content}</p>
+              )}
+              {showImageModal && (
+                <ImageModal
+                  src={message.mediaUrl}
+                  alt="Imagem"
+                  onClose={() => setShowImageModal(false)}
+                />
+              )}
+            </>
           ) : (
             <p className="whitespace-pre-wrap break-words">{message.content}</p>
           )}
