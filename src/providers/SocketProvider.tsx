@@ -35,15 +35,21 @@ export function SocketProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     if (!user || socketRef.current?.connected) return;
 
-    const socketUrl = typeof window !== 'undefined' 
-      ? `${window.location.protocol}//${window.location.hostname}:3000`
-      : 'http://localhost:3000';
+    // URL do WebSocket - usar variável de ambiente ou mesmo host com porta diferente
+    const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 
+      (typeof window !== 'undefined' 
+        ? `${window.location.protocol}//${window.location.hostname}:3001`
+        : 'http://localhost:3001');
 
     console.log('Conectando ao socket:', socketUrl);
 
     socketRef.current = io(socketUrl, {
       transports: ['websocket', 'polling'],
       autoConnect: true,
+      reconnection: true,
+      reconnectionAttempts: 5,
+      reconnectionDelay: 1000,
+      timeout: 20000,
     });
 
     const socket = socketRef.current;
