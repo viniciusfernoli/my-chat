@@ -78,7 +78,7 @@ cp .env.example .env.local
 4. Edite o arquivo `.env.local` com suas credenciais:
 ```env
 DATABASE_URL="postgresql://user:password@host:5432/securechat?sslmode=require"
-NEXT_PUBLIC_GIPHY_API_KEY="sua_chave_giphy"
+GIPHY_API_KEY="sua_chave_giphy"
 JWT_SECRET="sua_chave_secreta"
 NEXT_PUBLIC_APP_URL="http://localhost:3000"
 ```

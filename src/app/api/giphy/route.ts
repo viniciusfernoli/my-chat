@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 
-const GIPHY_API_KEY = process.env.NEXT_PUBLIC_GIPHY_API_KEY;
+const GIPHY_API_KEY = process.env.GIPHY_API_KEY;
 const GIPHY_API_URL = 'https://api.giphy.com/v1/gifs';
 
 export async function GET(request: NextRequest) {
