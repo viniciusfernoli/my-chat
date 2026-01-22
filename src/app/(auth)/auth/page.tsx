@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Shield, Key, UserPlus, LogIn } from 'lucide-react';
-import { Button, Input } from '@/components/ui';
+import { Button, Input, Spinner } from '@/components/ui';
 import { useAuthStore } from '@/stores';
 import { generateSecretKey, generateKeyPair, isValidSecretKeyFormat } from '@/lib/crypto';
 
@@ -11,13 +11,38 @@ type AuthMode = 'login' | 'register';
 
 export default function AuthPage() {
   const router = useRouter();
-  const { login, setLoading } = useAuthStore();
+  const { login, setLoading, isAuthenticated, hasHydrated, isLoading: authLoading } = useAuthStore();
   const [mode, setMode] = useState<AuthMode>('login');
   const [secretKey, setSecretKey] = useState('');
   const [nickname, setNickname] = useState('');
   const [generatedKey, setGeneratedKey] = useState('');
   const [error, setError] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
+
+  // Redirecionar se já está logado
+  useEffect(() => {
+    if (hasHydrated && !authLoading && isAuthenticated) {
+      router.push('/chat');
+    }
+  }, [hasHydrated, authLoading, isAuthenticated, router]);
+
+  // Mostrar loading enquanto verifica autenticação
+  if (!hasHydrated || authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-dark-950">
+        <Spinner size="lg" />
+      </div>
+    );
+  }
+
+  // Se já está autenticado, não mostrar o form
+  if (isAuthenticated) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-dark-950">
+        <Spinner size="lg" />
+      </div>
+    );
+  }
 
   const handleGenerateKey = () => {
     const newKey = generateSecretKey();

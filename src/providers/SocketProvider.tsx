@@ -124,15 +124,17 @@ export function SocketProvider({ children }: { children: ReactNode }) {
         // Mover conversa para o topo
         moveConversationToTop(conversationId);
         
-        // Incrementar contador de não lidas (se não estiver na conversa)
+        // Pegar conversa atual do ref
         const currentConv = chatStoreRef.current.currentConversation;
+        
+        // Incrementar contador de não lidas (se não estiver na conversa)
         if (currentConv?.id !== conversationId) {
           incrementUnreadCount(conversationId);
         }
         
         // Enviar notificação push
         const userStatus = user.status || 'online';
-        if (notificationService.shouldNotify(userStatus)) {
+        if (notificationService.shouldNotify(userStatus, currentConv?.id, conversationId)) {
           const senderName = message.sender?.nickname || 'Alguém';
           const messageContent = message.type === 'gif' 
             ? '🎬 Enviou um GIF' 

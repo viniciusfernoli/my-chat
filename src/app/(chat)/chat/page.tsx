@@ -12,7 +12,7 @@ import { cn } from '@/lib/utils';
 
 export default function ChatPage() {
   const router = useRouter();
-  const { user, isAuthenticated, isLoading: authLoading, logout } = useAuthStore();
+  const { user, isAuthenticated, isLoading: authLoading, logout, hasHydrated } = useAuthStore();
   const { notifyNewConversation, updateUserStatus } = useSocket();
   const {
     conversations,
@@ -29,12 +29,12 @@ export default function ChatPage() {
   const [showSidebar, setShowSidebar] = useState(true);
   const [userStatus, setUserStatus] = useState<'online' | 'away' | 'busy' | 'offline'>('online');
 
-  // Verificar autenticação
+  // Verificar autenticação - só redirecionar após hydratação
   useEffect(() => {
-    if (!authLoading && !isAuthenticated) {
+    if (hasHydrated && !authLoading && !isAuthenticated) {
       router.push('/auth');
     }
-  }, [authLoading, isAuthenticated, router]);
+  }, [hasHydrated, authLoading, isAuthenticated, router]);
 
   // Carregar conversas
   const loadConversations = useCallback(async () => {
@@ -128,7 +128,8 @@ export default function ChatPage() {
       .includes(searchQuery.toLowerCase());
   });
 
-  if (authLoading || !user) {
+  // Aguardar hydratação e autenticação
+  if (!hasHydrated || authLoading || !user) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-dark-950">
         <Spinner size="lg" />

@@ -65,6 +65,18 @@ export class NotificationService {
     return this.permission === 'granted';
   }
 
+  // Verificar se a página está focada (aba ativa e janela em foco)
+  isPageFocused(): boolean {
+    if (typeof document === 'undefined') return false;
+    return document.visibilityState === 'visible' && document.hasFocus();
+  }
+
+  // Verificar se documento está visível (aba ativa, mas janela pode estar minimizada)
+  isDocumentVisible(): boolean {
+    if (typeof document === 'undefined') return false;
+    return document.visibilityState === 'visible';
+  }
+
   // Enviar notificação
   async notify(
     title: string,
@@ -116,7 +128,7 @@ export class NotificationService {
     await this.notify(`${senderName}`, {
       body: truncatedMessage,
       icon: senderAvatar || '/favicon.ico',
-      tag: `message-${conversationId}`, // Agrupa notificações da mesma conversa
+      tag: `message-${conversationId}-${Date.now()}`, // Cada mensagem é única
       data: {
         type: 'new-message',
         conversationId,
@@ -125,21 +137,32 @@ export class NotificationService {
     });
   }
 
-  // Verificar se documento está visível
-  isDocumentVisible(): boolean {
-    if (typeof document === 'undefined') return false;
-    return document.visibilityState === 'visible';
-  }
-
-  // Verificar se deve notificar (baseado em status do usuário)
-  shouldNotify(userStatus: string): boolean {
+  // Verificar se deve notificar (baseado em status do usuário e conversa atual)
+  shouldNotify(userStatus: string, currentConversationId?: string | null, messageConversationId?: string): boolean {
     // Não notificar se ocupado
     if (userStatus === 'busy') return false;
     
-    // Notificar se não está visível ou se está ausente
-    if (!this.isDocumentVisible()) return true;
+    // Se a janela não está focada (minimizada ou em outra janela), sempre notifica
+    if (!this.isPageFocused()) {
+      console.log('📢 Notificando: janela não focada');
+      return true;
+    }
     
-    return false;
+    // Se está em outra aba (documento não visível), sempre notifica
+    if (!this.isDocumentVisible()) {
+      console.log('📢 Notificando: aba não visível');
+      return true;
+    }
+    
+    // Se está na mesma conversa que recebeu a mensagem, não notifica
+    if (currentConversationId && messageConversationId && currentConversationId === messageConversationId) {
+      console.log('🔕 Não notificando: está na mesma conversa');
+      return false;
+    }
+    
+    // Está no chat mas em outra conversa - notifica
+    console.log('📢 Notificando: está em outra conversa');
+    return true;
   }
 }
 
