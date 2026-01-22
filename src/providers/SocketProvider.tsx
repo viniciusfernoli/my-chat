@@ -36,8 +36,8 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     if (!user || socketRef.current?.connected) return;
 
     const socketUrl = typeof window !== 'undefined' 
-      ? `${window.location.protocol}//${window.location.hostname}:3001`
-      : 'http://localhost:3001';
+      ? `${window.location.protocol}//${window.location.hostname}:3000`
+      : 'http://localhost:3000';
 
     console.log('Conectando ao socket:', socketUrl);
 

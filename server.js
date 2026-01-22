@@ -1,7 +1,7 @@
 const { createServer } = require('http');
 const { Server } = require('socket.io');
 
-const port = parseInt(process.env.SOCKET_PORT || '3001', 10);
+const port = parseInt(process.env.SOCKET_PORT || '3000', 10);
 
 // Armazenamento em memória
 const onlineUsers = new Map(); // odId -> { id, nickname, avatar }
