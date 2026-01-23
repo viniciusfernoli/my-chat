@@ -13,6 +13,7 @@ import { ImageUploadService } from '@/services/image-upload-service';
 interface MessageInputProps {
   onSendMessage: (content: string, type: 'text' | 'gif' | 'image', mediaUrl?: string) => void;
   onTyping?: () => void;
+  onStopTyping?: () => void;
   replyTo?: IMessage | null;
   onCancelReply?: () => void;
   disabled?: boolean;
@@ -26,6 +27,7 @@ interface ImagePreview {
 export function MessageInput({
   onSendMessage,
   onTyping,
+  onStopTyping,
   replyTo,
   onCancelReply,
   disabled = false,
@@ -157,8 +159,21 @@ export function MessageInput({
   };
   
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-    setMessage(e.target.value);
-    onTyping?.();
+    const newValue = e.target.value;
+    setMessage(newValue);
+    
+    // Só emitir "digitando" se tiver pelo menos 1 caractere
+    if (newValue.length >= 1) {
+      onTyping?.();
+    } else {
+      // Se apagou tudo, parar de mostrar "digitando"
+      onStopTyping?.();
+    }
+  };
+
+  const handleBlur = () => {
+    // Parar de mostrar "digitando" quando o input perde o foco
+    onStopTyping?.();
   };
 
   const handleGifSelect = async (gif: IGif) => {
@@ -309,6 +324,7 @@ export function MessageInput({
             onChange={handleChange}
             onKeyDown={handleKeyDown}
             onPaste={handlePaste}
+            onBlur={handleBlur}
             placeholder={imagePreview ? "Adicione uma legenda (opcional)..." : "Digite uma mensagem..."}
             className="w-full bg-dark-700 border border-dark-600 rounded-xl px-4 py-3 text-white placeholder-dark-400 resize-none focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-transparent min-h-[48px] max-h-32"
             rows={1}

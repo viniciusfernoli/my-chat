@@ -24,6 +24,7 @@ export interface IMessage {
   type: MessageType;
   mediaUrl?: string;
   gifUrl?: string;
+  metadata?: Record<string, unknown>;
   reactions: IReaction[];
   replyTo?: IMessageReply;
   replyToMessage?: IMessage;

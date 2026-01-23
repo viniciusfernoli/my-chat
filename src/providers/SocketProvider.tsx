@@ -59,8 +59,8 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     // URL do WebSocket - usar variável de ambiente ou mesmo host com porta diferente
     const socketUrl = process.env.NEXT_PUBLIC_SOCKET_URL || 
       (typeof window !== 'undefined' 
-        ? `${window.location.protocol}//${window.location.hostname}:3001`
-        : 'http://localhost:3001');
+        ? `${window.location.protocol}//${window.location.hostname}:8080`
+        : 'http://localhost:8080');
 
     console.log('Conectando ao socket:', socketUrl);
 
@@ -92,13 +92,21 @@ export function SocketProvider({ children }: { children: ReactNode }) {
     socket.on('users:online', (userIds: string[]) => {
       console.log('👥 Usuários online:', userIds);
       setOnlineUsers(userIds);
+      // Definir status 'online' para TODOS que estão online
+      // O evento users:statuses vai sobrescrever com busy/away se necessário
+      userIds.forEach(userId => {
+        setUserStatus(userId, 'online');
+      });
     });
 
-    // Receber todos os status de usuários
+    // Receber todos os status de usuários (sobrescreve o 'online' padrão com busy/away)
     socket.on('users:statuses', (statuses: Record<string, string>) => {
       console.log('📊 Status dos usuários:', statuses);
-      Object.entries(statuses).forEach(([odId, status]) => {
-        setUserStatus(odId, status);
+      Object.entries(statuses).forEach(([userId, status]) => {
+        // Só atualizar se o usuário estiver online (evita definir offline para quem acabou de aparecer como online)
+        if (useChatStore.getState().onlineUsers.has(userId)) {
+          setUserStatus(userId, status);
+        }
       });
     });
 

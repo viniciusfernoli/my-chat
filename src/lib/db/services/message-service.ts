@@ -276,22 +276,14 @@ export const messageService = {
       }
     }
 
-    // Agrupar reações por emoji
-    const reactionGroups: { emoji: string; users: { id: string; nickname: string }[] }[] = [];
-    const emojiMap = new Map<string, string[]>();
-    for (const r of reactions) {
-      const existing = emojiMap.get(r.emoji) || [];
-      existing.push(r.userId);
-      emojiMap.set(r.emoji, existing);
-    }
-    
-    for (const [emoji, userIds] of emojiMap) {
-      const users = await Promise.all(userIds.map(async id => {
-        const u = await userService.findById(id);
-        return { id, nickname: u?.nickname || 'Desconhecido' };
-      }));
-      reactionGroups.push({ emoji, users });
-    }
+    // Converter reações para formato IReaction[]
+    const formattedReactions = reactions.map(r => ({
+      id: r.id,
+      messageId: r.messageId,
+      userId: r.userId,
+      emoji: r.emoji,
+      createdAt: toISOString(r.createdAt),
+    }));
 
     return {
       id: message.id,
@@ -304,7 +296,10 @@ export const messageService = {
       isEdited: message.isEdited,
       isDeleted: message.isDeleted,
       metadata: message.metadata,
-      reactions: reactionGroups,
+      // Extrair mediaUrl e gifUrl do metadata para compatibilidade com o frontend
+      mediaUrl: message.metadata?.mediaUrl as string | undefined,
+      gifUrl: message.metadata?.gifUrl as string | undefined,
+      reactions: formattedReactions,
       createdAt: toISOString(message.createdAt),
       updatedAt: toISOString(message.updatedAt),
     };
@@ -357,22 +352,14 @@ export const messageService = {
         }
       }
 
-      // Agrupar reações por emoji
-      const reactionGroups: { emoji: string; users: { id: string; nickname: string }[] }[] = [];
-      const emojiMap = new Map<string, string[]>();
-      for (const r of reactions) {
-        const existing = emojiMap.get(r.emoji) || [];
-        existing.push(r.userId);
-        emojiMap.set(r.emoji, existing);
-      }
-      
-      for (const [emoji, userReactionIds] of emojiMap) {
-        const users = userReactionIds.map(id => {
-          const u = usersMap.get(id);
-          return { id, nickname: u?.nickname || 'Desconhecido' };
-        });
-        reactionGroups.push({ emoji, users });
-      }
+      // Converter reações para formato IReaction[]
+      const formattedReactions = reactions.map(r => ({
+        id: r.id,
+        messageId: r.messageId,
+        userId: r.userId,
+        emoji: r.emoji,
+        createdAt: toISOString(r.createdAt),
+      }));
 
       return {
         id: message.id,
@@ -385,7 +372,10 @@ export const messageService = {
         isEdited: message.isEdited,
         isDeleted: message.isDeleted,
         metadata: message.metadata,
-        reactions: reactionGroups,
+        // Extrair mediaUrl e gifUrl do metadata para compatibilidade com o frontend
+        mediaUrl: message.metadata?.mediaUrl as string | undefined,
+        gifUrl: message.metadata?.gifUrl as string | undefined,
+        reactions: formattedReactions,
         createdAt: toISOString(message.createdAt),
         updatedAt: toISOString(message.updatedAt),
       };

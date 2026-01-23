@@ -6,6 +6,7 @@ import { Avatar, Dropdown } from '@/components/ui';
 import { MessageList } from './MessageList';
 import { MessageInput } from './MessageInput';
 import { GroupSettingsModal } from './GroupSettingsModal';
+import { TypingIndicator } from './TypingIndicator';
 import { IConversation, IMessage } from '@/types';
 import { useAuthStore, useChatStore } from '@/stores';
 import { useSocket } from '@/hooks/useSocket';
@@ -17,7 +18,12 @@ interface ChatWindowProps {
 
 export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
   const { user } = useAuthStore();
-  const { messages, addMessage, onlineUsers, updateMessage, setCurrentConversation, prependMessages } = useChatStore();
+  const { messages, addMessage, updateMessage, setCurrentConversation, prependMessages, getUserStatus, isUserOnline } = useChatStore();
+  // Forçar re-render quando onlineUsers ou userStatuses mudam (variáveis precisam ser referenciadas)
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _onlineVersion = useChatStore((state) => state.onlineUsersVersion);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _statusVersion = useChatStore((state) => state.userStatusesVersion);
   const [replyTo, setReplyTo] = useState<IMessage | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingMore, setIsLoadingMore] = useState(false);
@@ -33,10 +39,23 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
     (p) => p.id !== user?.id
   );
   
-  // Para grupos, mostrar se algum membro está online
-  const isOnline = conversation.participants.some(
-    (p) => p.id !== user?.id && onlineUsers.has(p.id)
-  );
+  // Verificar se está online primeiro (via WebSocket), depois pegar o status específico
+  const isParticipantOnline = otherParticipant ? isUserOnline(otherParticipant.id) : false;
+  const participantStatus = otherParticipant ? getUserStatus(otherParticipant.id) : 'offline';
+  
+  // Para grupos: verificar se algum membro está online
+  const isOnline = conversation.isGroup
+    ? conversation.participants.some(
+        (p) => p.id !== user?.id && isUserOnline(p.id)
+      )
+    : isParticipantOnline;
+  
+  // Status para exibir: se online, usar status específico (online/busy/away), senão offline
+  const displayStatus = conversation.isGroup 
+    ? (isOnline ? 'online' : 'offline')
+    : isParticipantOnline 
+      ? (participantStatus as 'online' | 'busy' | 'away' | 'offline') || 'online'
+      : 'offline';
 
   const conversationMessages = messages.get(conversation.id) || [];
 
@@ -115,10 +134,16 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
     
     return () => {
       if (conversation.id) {
+        // Parar de digitar ao sair da conversa
+        if (typingTimeout.current) {
+          clearTimeout(typingTimeout.current);
+          typingTimeout.current = null;
+        }
+        stopTyping(conversation.id);
         leaveConversation(conversation.id);
       }
     };
-  }, [conversation.id, conversation.participants, joinConversation, leaveConversation, loadInitialMessages]);
+  }, [conversation.id, conversation.participants, joinConversation, leaveConversation, loadInitialMessages, stopTyping]);
 
   const handleSendMessage = async (
     content: string,
@@ -223,6 +248,14 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
     }, 2000);
   }, [conversation.id, startTyping, stopTyping]);
 
+  const handleStopTyping = useCallback(() => {
+    if (typingTimeout.current) {
+      clearTimeout(typingTimeout.current);
+      typingTimeout.current = null;
+    }
+    stopTyping(conversation.id);
+  }, [conversation.id, stopTyping]);
+
   const handleReact = async (messageId: string, emoji: string) => {
     if (!user) return;
 
@@ -316,7 +349,7 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
           src={conversationAvatar}
           name={conversationName}
           size="md"
-          status={isOnline ? 'online' : 'offline'}
+          status={displayStatus}
         />
         
         <div className="flex-1 min-w-0">
@@ -326,7 +359,10 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
           <p className="text-xs text-dark-400">
             {conversation.isGroup 
               ? `${conversation.participants.length} participantes`
-              : isOnline ? 'Online' : 'Offline'}
+              : displayStatus === 'online' ? 'Online' 
+              : displayStatus === 'busy' ? 'Ocupado'
+              : displayStatus === 'away' ? 'Ausente'
+              : 'Offline'}
           </p>
         </div>
 
@@ -360,10 +396,17 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
         onReact={handleReact}
       />
 
+      {/* Typing Indicator */}
+      <TypingIndicator 
+        conversation={conversation}
+        currentUserId={user?.id}
+      />
+
       {/* Input */}
       <MessageInput
         onSendMessage={handleSendMessage}
         onTyping={handleTyping}
+        onStopTyping={handleStopTyping}
         replyTo={replyTo}
         onCancelReply={() => setReplyTo(null)}
       />

@@ -7,7 +7,9 @@ interface ChatState {
   messages: Map<string, IMessage[]>;
   typingUsers: Map<string, string[]>; // conversationId -> userIds[]
   onlineUsers: Set<string>;
+  onlineUsersVersion: number; // Para forçar re-render quando Set muda
   userStatuses: Map<string, string>; // userId -> status (online, offline, busy, away)
+  userStatusesVersion: number; // Para forçar re-render quando Map muda
 
   // Actions
   setConversations: (conversations: IConversation[]) => void;
@@ -34,6 +36,7 @@ interface ChatState {
   removeOnlineUser: (userId: string) => void;
   setUserStatus: (userId: string, status: string) => void;
   getUserStatus: (userId: string) => string;
+  isUserOnline: (userId: string) => boolean;
   
   reset: () => void;
 }
@@ -44,7 +47,9 @@ export const useChatStore = create<ChatState>((set, get) => ({
   messages: new Map(),
   typingUsers: new Map(),
   onlineUsers: new Set(),
+  onlineUsersVersion: 0,
   userStatuses: new Map(),
+  userStatusesVersion: 0,
 
   setConversations: (conversations) => set({ conversations }),
   
@@ -197,31 +202,47 @@ export const useChatStore = create<ChatState>((set, get) => ({
       return { typingUsers: newTypingUsers };
     }),
 
-  setOnlineUsers: (userIds) => set({ onlineUsers: new Set(userIds) }),
+  setOnlineUsers: (userIds) => set((state) => ({ 
+    onlineUsers: new Set(userIds),
+    onlineUsersVersion: state.onlineUsersVersion + 1,
+  })),
   
   addOnlineUser: (userId) =>
     set((state) => {
       const newOnlineUsers = new Set(state.onlineUsers);
       newOnlineUsers.add(userId);
-      return { onlineUsers: newOnlineUsers };
+      return { 
+        onlineUsers: newOnlineUsers,
+        onlineUsersVersion: state.onlineUsersVersion + 1,
+      };
     }),
   
   removeOnlineUser: (userId) =>
     set((state) => {
       const newOnlineUsers = new Set(state.onlineUsers);
       newOnlineUsers.delete(userId);
-      return { onlineUsers: newOnlineUsers };
+      return { 
+        onlineUsers: newOnlineUsers,
+        onlineUsersVersion: state.onlineUsersVersion + 1,
+      };
     }),
 
   setUserStatus: (userId, status) =>
     set((state) => {
       const newStatuses = new Map(state.userStatuses);
       newStatuses.set(userId, status);
-      return { userStatuses: newStatuses };
+      return { 
+        userStatuses: newStatuses,
+        userStatusesVersion: state.userStatusesVersion + 1,
+      };
     }),
 
   getUserStatus: (userId) => {
     return get().userStatuses.get(userId) || 'offline';
+  },
+
+  isUserOnline: (userId) => {
+    return get().onlineUsers.has(userId);
   },
 
   reset: () =>
@@ -231,6 +252,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
       messages: new Map(),
       typingUsers: new Map(),
       onlineUsers: new Set(),
+      onlineUsersVersion: 0,
       userStatuses: new Map(),
+      userStatusesVersion: 0,
     }),
 }));

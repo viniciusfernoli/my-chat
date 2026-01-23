@@ -13,7 +13,12 @@ interface ConversationListProps {
 
 export function ConversationList({ conversations, onSelect }: ConversationListProps) {
   const { user } = useAuthStore();
-  const { currentConversation, onlineUsers, getUserStatus } = useChatStore();
+  const { currentConversation, getUserStatus, isUserOnline } = useChatStore();
+  // Forçar re-render quando onlineUsers ou userStatuses mudam
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _onlineVersion = useChatStore((state) => state.onlineUsersVersion);
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const _statusVersion = useChatStore((state) => state.userStatusesVersion);
 
   if (conversations.length === 0) {
     return (
@@ -34,7 +39,7 @@ export function ConversationList({ conversations, onSelect }: ConversationListPr
         if (conversation.isGroup) {
           const isSelected = currentConversation?.id === conversation.id;
           const onlineCount = conversation.participants.filter(
-            p => p.id !== user?.id && onlineUsers.has(p.id)
+            p => p.id !== user?.id && isUserOnline(p.id)
           ).length;
 
           return (
@@ -87,8 +92,10 @@ export function ConversationList({ conversations, onSelect }: ConversationListPr
 
         if (!otherParticipant) return null;
 
-        const isOnline = onlineUsers.has(otherParticipant.id);
+        // Verificar se está online primeiro, depois pegar o status específico
+        const isOnline = isUserOnline(otherParticipant.id);
         const participantStatus = getUserStatus(otherParticipant.id);
+        // Se está online, usar o status definido (online/busy/away), senão offline
         const displayStatus = isOnline 
           ? (participantStatus as 'online' | 'away' | 'busy' | 'offline') || 'online'
           : 'offline';

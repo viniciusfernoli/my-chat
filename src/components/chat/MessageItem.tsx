@@ -380,17 +380,18 @@ export function MessageItem({
               : 'bg-dark-700 text-white rounded-tl-sm'
           )}
         >
-          {message.type === 'gif' && message.gifUrl ? (
+          {/* Renderizar GIF - verificar também no metadata para mensagens antigas */}
+          {(message.type === 'gif' || message.metadata?.gifUrl) && (message.gifUrl || message.metadata?.gifUrl) ? (
             <div className="relative w-48 h-48 rounded-lg overflow-hidden">
               <Image
-                src={message.gifUrl}
+                src={(message.gifUrl || message.metadata?.gifUrl) as string}
                 alt={message.content || 'GIF'}
                 fill
                 className="object-cover"
                 unoptimized
               />
             </div>
-          ) : message.type === 'image' && message.mediaUrl ? (
+          ) : (message.type === 'image' || message.metadata?.mediaUrl) && (message.mediaUrl || message.metadata?.mediaUrl) ? (
             <>
               <div 
                 className="relative w-64 max-w-full rounded-lg overflow-hidden cursor-pointer group"
@@ -398,7 +399,7 @@ export function MessageItem({
               >
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
-                  src={message.mediaUrl}
+                  src={(message.mediaUrl || message.metadata?.mediaUrl) as string}
                   alt="Imagem"
                   className="max-w-full h-auto rounded-lg"
                   style={{ maxHeight: '300px' }}
@@ -415,7 +416,7 @@ export function MessageItem({
               )}
               {showImageModal && (
                 <ImageModal
-                  src={message.mediaUrl}
+                  src={(message.mediaUrl || message.metadata?.mediaUrl) as string}
                   alt="Imagem"
                   onClose={() => setShowImageModal(false)}
                 />

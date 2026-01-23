@@ -10,3 +10,4 @@ export { CreateGroupModal } from './CreateGroupModal';
 export { GroupSettingsModal } from './GroupSettingsModal';
 export { StatusSelector } from './StatusSelector';
 export { NotificationPrompt } from './NotificationPrompt';
+export { TypingIndicator } from './TypingIndicator';
