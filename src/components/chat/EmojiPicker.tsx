@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 
 interface EmojiPickerProps {
   onSelect: (emoji: string) => void;
   onClose: () => void;
+  triggerRef?: React.RefObject<HTMLButtonElement | null>;
 }
 
 const EMOJI_CATEGORIES = {
@@ -17,11 +19,59 @@ const EMOJI_CATEGORIES = {
   'Animais': ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼', '🐻‍❄️', '🐨', '🐯', '🦁', '🐮', '🐷', '🐸', '🐵', '🐔', '🐧', '🐦', '🦆'],
 };
 
-export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
+export function EmojiPicker({ onSelect, onClose, triggerRef }: EmojiPickerProps) {
   const [activeCategory, setActiveCategory] = useState<string>('Smileys');
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const ref = useRef<HTMLDivElement>(null);
 
-  return (
-    <div className="absolute bottom-full right-0 mb-2 w-72 bg-dark-800 rounded-xl border border-dark-700 shadow-2xl overflow-hidden animate-fade-in">
+  useEffect(() => {
+    if (triggerRef?.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      const pickerWidth = 288;
+      const pickerHeight = 280;
+      
+      let left = rect.left;
+      let top = rect.top - pickerHeight - 8;
+      
+      // Se não cabe acima, posiciona abaixo
+      if (top < 8) {
+        top = rect.bottom + 8;
+      }
+      
+      // Se ultrapassa à direita
+      if (left + pickerWidth > window.innerWidth - 8) {
+        left = window.innerWidth - pickerWidth - 8;
+      }
+      
+      // Se ultrapassa à esquerda
+      if (left < 8) {
+        left = 8;
+      }
+      
+      setPosition({ top, left });
+    }
+  }, [triggerRef]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (ref.current && !ref.current.contains(event.target as Node) &&
+          triggerRef?.current && !triggerRef.current.contains(event.target as Node)) {
+        onClose();
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [onClose, triggerRef]);
+
+  const content = (
+    <div 
+      ref={ref}
+      style={triggerRef ? { top: position.top, left: position.left } : undefined}
+      className={cn(
+        "w-72 bg-dark-800 rounded-xl border border-dark-700 shadow-2xl overflow-hidden",
+        triggerRef ? "fixed z-[9999]" : "absolute bottom-full right-0 mb-2"
+      )}
+    >
       {/* Categories */}
       <div className="flex border-b border-dark-700 overflow-x-auto scrollbar-hide">
         {Object.keys(EMOJI_CATEGORIES).map((category) => (
@@ -48,7 +98,6 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
               key={index}
               onClick={() => {
                 onSelect(emoji);
-                onClose();
               }}
               className="w-8 h-8 flex items-center justify-center text-xl hover:bg-dark-700 rounded transition-colors"
             >
@@ -59,4 +108,11 @@ export function EmojiPicker({ onSelect, onClose }: EmojiPickerProps) {
       </div>
     </div>
   );
+
+  // Se tem triggerRef, usa portal
+  if (triggerRef) {
+    return createPortal(content, document.body);
+  }
+  
+  return content;
 }

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { userService, toISOString } from '@/lib/db/services';
 import nacl from 'tweetnacl';
 import { encodeBase64 } from 'tweetnacl-util';
 
@@ -31,9 +31,7 @@ export async function POST(request: NextRequest) {
     );
 
     // Buscar usuário
-    const user = await prisma.user.findUnique({
-      where: { secretKeyHash },
-    });
+    const user = await userService.findBySecretKeyHash(secretKeyHash);
 
     if (!user) {
       return NextResponse.json(
@@ -42,14 +40,20 @@ export async function POST(request: NextRequest) {
       );
     }
 
+    // Verificar se email foi verificado
+    if (!user.emailVerified) {
+      return NextResponse.json(
+        { 
+          error: 'Email não verificado',
+          requiresVerification: true,
+          userId: user.id,
+        },
+        { status: 403 }
+      );
+    }
+
     // Atualizar status e lastSeen
-    await prisma.user.update({
-      where: { id: user.id },
-      data: {
-        status: 'online',
-        lastSeen: new Date(),
-      },
-    });
+    await userService.updateStatus(user.id, 'online');
 
     // Gerar token simples (em produção, usar JWT)
     const token = encodeBase64(nacl.randomBytes(32));
@@ -59,13 +63,16 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({
       user: {
         id: user.id,
+        username: user.username,
         nickname: user.nickname,
+        email: user.email,
+        emailVerified: user.emailVerified,
         avatar: user.avatar,
         status: 'online',
         bio: user.bio,
         publicKey: user.publicKey,
-        createdAt: user.createdAt,
-        lastSeen: user.lastSeen,
+        createdAt: toISOString(user.createdAt),
+        lastSeen: toISOString(user.lastSeen),
       },
       token,
       // O cliente precisa derivar o keyPair da secretKey localmente

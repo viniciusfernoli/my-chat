@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { conversationService, userService } from '@/lib/db/services';
 
 // Buscar conversas do usuário
 export async function GET(request: NextRequest) {
@@ -13,57 +13,12 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    const conversations = await prisma.conversation.findMany({
-      where: {
-        participants: {
-          some: { userId },
-        },
-      },
-      include: {
-        participants: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                nickname: true,
-                avatar: true,
-                status: true,
-                publicKey: true,
-              },
-            },
-          },
-        },
-        messages: {
-          orderBy: { createdAt: 'desc' },
-          take: 1,
-          include: {
-            sender: {
-              select: {
-                id: true,
-                nickname: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: { updatedAt: 'desc' },
-    });
+    const conversations = await conversationService.findByUserId(userId);
 
-    type ConversationType = typeof conversations[number];
-    type ParticipantType = ConversationType['participants'][number];
-
-    const formattedConversations = conversations.map((conv: ConversationType) => ({
-      id: conv.id,
-      name: conv.name,
-      avatar: conv.avatar,
-      isGroup: conv.isGroup,
-      ownerId: conv.ownerId,
-      participants: conv.participants.map((p: ParticipantType) => p.user),
-      lastMessage: conv.messages[0] || null,
-      unreadCount: 0,
-      createdAt: conv.createdAt,
-      updatedAt: conv.updatedAt,
-    }));
+    // Formatar conversas com participantes
+    const formattedConversations = await Promise.all(
+      conversations.map(conv => conversationService.toApiFormat(conv, true))
+    );
 
     return NextResponse.json(formattedConversations);
   } catch (error) {
@@ -98,9 +53,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar se participante existe
-    const participant = await prisma.user.findUnique({
-      where: { id: participantId },
-    });
+    const participant = await userService.findById(participantId);
 
     if (!participant) {
       return NextResponse.json(
@@ -110,86 +63,21 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar se já existe conversa entre os dois (apenas DMs, não grupos)
-    const existingConversation = await prisma.conversation.findFirst({
-      where: {
-        isGroup: false,
-        AND: [
-          { participants: { some: { userId } } },
-          { participants: { some: { userId: participantId } } },
-        ],
-      },
-      include: {
-        participants: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                nickname: true,
-                avatar: true,
-                status: true,
-                publicKey: true,
-              },
-            },
-          },
-        },
-      },
-    });
+    const existingConversation = await conversationService.findDM(userId, participantId);
 
     if (existingConversation) {
-      type ExistingParticipant = typeof existingConversation.participants[number];
-      return NextResponse.json({
-        id: existingConversation.id,
-        name: existingConversation.name,
-        avatar: existingConversation.avatar,
-        isGroup: existingConversation.isGroup,
-        ownerId: existingConversation.ownerId,
-        participants: existingConversation.participants.map((p: ExistingParticipant) => p.user),
-        unreadCount: 0,
-        createdAt: existingConversation.createdAt,
-        updatedAt: existingConversation.updatedAt,
-      });
+      const formatted = await conversationService.toApiFormat(existingConversation);
+      return NextResponse.json(formatted);
     }
 
     // Criar nova conversa (DM)
-    const conversation = await prisma.conversation.create({
-      data: {
-        isGroup: false,
-        participants: {
-          create: [
-            { userId },
-            { userId: participantId },
-          ],
-        },
-      },
-      include: {
-        participants: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                nickname: true,
-                avatar: true,
-                status: true,
-                publicKey: true,
-              },
-            },
-          },
-        },
-      },
+    const conversation = await conversationService.create({
+      isGroup: false,
+      participantIds: [userId, participantId],
     });
 
-    type NewParticipant = typeof conversation.participants[number];
-    return NextResponse.json({
-      id: conversation.id,
-      name: conversation.name,
-      avatar: conversation.avatar,
-      isGroup: conversation.isGroup,
-      ownerId: conversation.ownerId,
-      participants: conversation.participants.map((p: NewParticipant) => p.user),
-      unreadCount: 0,
-      createdAt: conversation.createdAt,
-      updatedAt: conversation.updatedAt,
-    });
+    const formatted = await conversationService.toApiFormat(conversation);
+    return NextResponse.json(formatted);
   } catch (error) {
     console.error('Erro ao criar conversa:', error);
     return NextResponse.json(

@@ -1,8 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import Image from 'next/image';
-import { MoreVertical, Reply, Smile, Trash2, X, Download, ZoomIn } from 'lucide-react';
+import { MoreVertical, Reply, Smile, Trash2, X, Download, ZoomIn, Plus } from 'lucide-react';
 import { Avatar, Dropdown, Tooltip } from '@/components/ui';
 import { IMessage, IReaction } from '@/types';
 import { cn, formatTime } from '@/lib/utils';
@@ -16,7 +17,215 @@ interface MessageItemProps {
   showAvatar?: boolean;
 }
 
-const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '😡'];
+const QUICK_REACTIONS = ['👍', '❤️', '😂', '😮', '😢', '🔥'];
+
+const ALL_EMOJIS = {
+  'Smileys': ['😀', '😃', '😄', '😁', '😅', '😂', '🤣', '😊', '😇', '🙂', '🙃', '😉', '😌', '😍', '🥰', '😘', '😋', '😛', '😜', '🤪', '😝', '🤗', '🤭', '🤫', '🤔', '😏', '😒', '🙄', '😬', '🤥'],
+  'Gestos': ['👍', '👎', '👊', '✊', '🤛', '🤜', '🤞', '✌️', '🤟', '🤘', '👌', '🤌', '👈', '👉', '👆', '👇', '👋', '🤚', '✋', '🖖', '👏', '🙌', '🤝', '🙏', '💪'],
+  'Corações': ['❤️', '🧡', '💛', '💚', '💙', '💜', '🖤', '🤍', '🤎', '💔', '❤️‍🔥', '💕', '💞', '💓', '💗', '💖', '💝', '💘'],
+  'Objetos': ['🎉', '🎊', '🎁', '🎈', '✨', '🌟', '⭐', '💫', '🔥', '💯', '🏆', '🥇', '🎮', '🎯', '🎵', '🎶'],
+};
+
+// Componente de picker completo de reações
+function FullEmojiPicker({
+  onSelect,
+  onClose,
+  position,
+}: {
+  onSelect: (emoji: string) => void;
+  onClose: () => void;
+  position: { top: number; left: number };
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [activeCategory, setActiveCategory] = useState<string>('Smileys');
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (ref.current && !ref.current.contains(event.target as Node)) {
+        onClose();
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, [onClose]);
+
+  // Ajustar posição se necessário
+  const adjustedPosition = { ...position };
+  const pickerWidth = 280;
+  const pickerHeight = 260;
+  
+  if (adjustedPosition.left + pickerWidth > window.innerWidth - 8) {
+    adjustedPosition.left = window.innerWidth - pickerWidth - 8;
+  }
+  if (adjustedPosition.left < 8) {
+    adjustedPosition.left = 8;
+  }
+  if (adjustedPosition.top + pickerHeight > window.innerHeight - 8) {
+    adjustedPosition.top = position.top - pickerHeight - 60;
+  }
+
+  return createPortal(
+    <div
+      ref={ref}
+      style={{ top: adjustedPosition.top, left: adjustedPosition.left }}
+      className="fixed z-[10000] w-70 bg-dark-800 border border-dark-600 rounded-xl shadow-2xl overflow-hidden"
+    >
+      {/* Categories */}
+      <div className="flex border-b border-dark-700 overflow-x-auto scrollbar-hide">
+        {Object.keys(ALL_EMOJIS).map((category) => (
+          <button
+            key={category}
+            onClick={() => setActiveCategory(category)}
+            className={cn(
+              'px-3 py-2 text-xs font-medium whitespace-nowrap transition-colors',
+              activeCategory === category
+                ? 'text-primary-400 border-b-2 border-primary-400'
+                : 'text-dark-400 hover:text-white'
+            )}
+          >
+            {category}
+          </button>
+        ))}
+      </div>
+
+      {/* Emojis Grid */}
+      <div className="h-44 overflow-y-auto p-2 grid grid-cols-8 gap-1">
+        {ALL_EMOJIS[activeCategory as keyof typeof ALL_EMOJIS].map((emoji, index) => (
+          <button
+            key={index}
+            onClick={() => {
+              onSelect(emoji);
+              onClose();
+            }}
+            className="w-8 h-8 flex items-center justify-center text-xl hover:bg-dark-700 rounded transition-colors"
+          >
+            {emoji}
+          </button>
+        ))}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
+// Componente de picker de reações usando Portal
+function ReactionPicker({
+  onSelect,
+  onClose,
+  triggerRef,
+  isOwn,
+}: {
+  onSelect: (emoji: string) => void;
+  onClose: () => void;
+  triggerRef: React.RefObject<HTMLButtonElement | null>;
+  isOwn: boolean;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const [showFullPicker, setShowFullPicker] = useState(false);
+
+  useEffect(() => {
+    // Calcular posição baseada no botão trigger
+    if (triggerRef.current) {
+      const rect = triggerRef.current.getBoundingClientRect();
+      const pickerWidth = 300;
+      
+      let left = isOwn ? rect.right - pickerWidth : rect.left;
+      let top = rect.bottom + 8;
+      
+      // Verificar se ultrapassa a tela à direita
+      if (left + pickerWidth > window.innerWidth - 16) {
+        left = window.innerWidth - pickerWidth - 16;
+      }
+      
+      // Verificar se ultrapassa a tela à esquerda
+      if (left < 16) {
+        left = 16;
+      }
+      
+      // Verificar se ultrapassa a tela embaixo
+      if (top + 60 > window.innerHeight) {
+        top = rect.top - 60;
+      }
+      
+      setPosition({ top, left });
+    }
+  }, [triggerRef, isOwn]);
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (ref.current && !ref.current.contains(event.target as Node) && 
+          triggerRef.current && !triggerRef.current.contains(event.target as Node)) {
+        if (!showFullPicker) {
+          onClose();
+        }
+      }
+    }
+    
+    function handleScroll() {
+      if (!showFullPicker) {
+        onClose();
+      }
+    }
+    
+    document.addEventListener('mousedown', handleClickOutside);
+    document.addEventListener('scroll', handleScroll, true);
+    
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('scroll', handleScroll, true);
+    };
+  }, [onClose, triggerRef, showFullPicker]);
+
+  if (showFullPicker) {
+    return (
+      <FullEmojiPicker
+        onSelect={(emoji) => {
+          onSelect(emoji);
+          onClose();
+        }}
+        onClose={() => {
+          setShowFullPicker(false);
+          onClose();
+        }}
+        position={position}
+      />
+    );
+  }
+
+  // Usar portal para renderizar fora do container
+  return createPortal(
+    <div
+      ref={ref}
+      style={{ top: position.top, left: position.left }}
+      className="fixed z-[9999] bg-dark-800 border border-dark-600 rounded-xl shadow-2xl p-2 transition-opacity duration-150"
+    >
+      <div className="flex gap-1">
+        {QUICK_REACTIONS.map((emoji) => (
+          <button
+            key={emoji}
+            onClick={() => {
+              onSelect(emoji);
+              onClose();
+            }}
+            className="w-10 h-10 flex items-center justify-center text-2xl hover:bg-dark-600 rounded-lg transition-colors"
+          >
+            {emoji}
+          </button>
+        ))}
+        {/* Botão para abrir picker completo */}
+        <button
+          onClick={() => setShowFullPicker(true)}
+          className="w-10 h-10 flex items-center justify-center text-dark-400 hover:text-white hover:bg-dark-600 rounded-lg transition-colors"
+          title="Mais emojis"
+        >
+          <Plus size={20} />
+        </button>
+      </div>
+    </div>,
+    document.body
+  );
+}
 
 // Modal de imagem em tela cheia
 function ImageModal({ 
@@ -84,8 +293,9 @@ export function MessageItem({
   showAvatar = true,
 }: MessageItemProps) {
   const { user } = useAuthStore();
-  const [showReactions, setShowReactions] = useState(false);
+  const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [showImageModal, setShowImageModal] = useState(false);
+  const reactionButtonRef = useRef<HTMLButtonElement>(null);
   const isOwn = message.senderId === user?.id;
 
   // Agrupar reações por emoji
@@ -121,16 +331,16 @@ export function MessageItem({
         'group flex gap-3 px-4 py-1 hover:bg-dark-800/50 transition-colors overflow-hidden',
         isOwn && 'flex-row-reverse'
       )}
-      onMouseEnter={() => setShowReactions(true)}
-      onMouseLeave={() => setShowReactions(false)}
     >
       {/* Avatar */}
       {showAvatar && (
         <Avatar
           src={message.sender?.avatar}
           name={message.sender?.nickname}
+          username={message.sender?.username}
           size="sm"
           className="shrink-0 mt-0.5"
+          showTooltip
         />
       )}
       {!showAvatar && <div className="w-8 shrink-0" />}
@@ -152,8 +362,12 @@ export function MessageItem({
         {/* Reply preview */}
         {message.replyTo && typeof message.replyTo === 'object' && (
           <div className="text-xs text-dark-400 mb-1 p-2 bg-dark-700/50 rounded-lg border-l-2 border-primary-500 max-w-full">
-            <span className="text-primary-400">{message.replyTo.sender?.nickname}: </span>
-            <span className="italic">Mensagem criptografada</span>
+            <span className="text-primary-400">
+              {message.replyTo.sender?.nickname || message.replyTo.senderNickname || 'Usuário'}:{' '}
+            </span>
+            <span className="italic truncate block">
+              {message.replyTo.content || 'Mensagem'}
+            </span>
           </div>
         )}
 
@@ -241,33 +455,28 @@ export function MessageItem({
           isOwn && 'order-first'
         )}
       >
-        {/* Quick reactions */}
-        <div className="relative">
-          {showReactions && (
-            <div 
-              className={cn(
-                "absolute top-full mt-1 flex gap-1 p-1 bg-dark-700 rounded-full shadow-lg animate-fade-in z-[100]",
-                isOwn ? "right-0" : "left-0"
-              )}
-            >
-              {QUICK_REACTIONS.map((emoji) => (
-                <button
-                  key={emoji}
-                  onClick={() => onReact(message.id, emoji)}
-                  className="w-7 h-7 flex items-center justify-center text-sm hover:bg-dark-600 rounded-full transition-colors"
-                >
-                  {emoji}
-                </button>
-              ))}
-            </div>
+        {/* Reaction button */}
+        <button
+          ref={reactionButtonRef}
+          className={cn(
+            'p-1.5 rounded-lg transition-colors',
+            showReactionPicker 
+              ? 'text-primary-400 bg-dark-700' 
+              : 'text-dark-400 hover:text-white hover:bg-dark-700'
           )}
-          <button
-            className="p-1.5 rounded-lg text-dark-400 hover:text-white hover:bg-dark-700 transition-colors"
-            onClick={() => setShowReactions(!showReactions)}
-          >
-            <Smile size={16} />
-          </button>
-        </div>
+          onClick={() => setShowReactionPicker(!showReactionPicker)}
+        >
+          <Smile size={16} />
+        </button>
+        
+        {showReactionPicker && (
+          <ReactionPicker
+            onSelect={(emoji) => onReact(message.id, emoji)}
+            onClose={() => setShowReactionPicker(false)}
+            triggerRef={reactionButtonRef}
+            isOwn={isOwn}
+          />
+        )}
 
         <Dropdown trigger={<MoreVertical size={16} />} items={dropdownItems} align={isOwn ? "left" : "right"} />
       </div>

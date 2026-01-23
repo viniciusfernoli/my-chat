@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { userService, toISOString } from '@/lib/db/services';
 
 export async function GET(request: NextRequest) {
   try {
@@ -14,19 +14,7 @@ export async function GET(request: NextRequest) {
     }
 
     // Buscar usuário
-    const user = await prisma.user.findUnique({
-      where: { id: userId },
-      select: {
-        id: true,
-        nickname: true,
-        avatar: true,
-        status: true,
-        bio: true,
-        publicKey: true,
-        createdAt: true,
-        lastSeen: true,
-      },
-    });
+    const user = await userService.findById(userId);
 
     if (!user) {
       return NextResponse.json(
@@ -36,16 +24,10 @@ export async function GET(request: NextRequest) {
     }
 
     // Atualizar status e lastSeen
-    await prisma.user.update({
-      where: { id: userId },
-      data: {
-        status: 'online',
-        lastSeen: new Date(),
-      },
-    });
+    await userService.updateStatus(userId, 'online');
 
     return NextResponse.json({
-      ...user,
+      ...userService.toPublicFormat(user),
       status: 'online',
     });
   } catch (error) {

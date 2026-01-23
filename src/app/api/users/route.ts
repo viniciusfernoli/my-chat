@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { userService } from '@/lib/db/services';
 
 // Buscar usuários (para adicionar amigos)
 export async function GET(request: NextRequest) {
@@ -11,22 +11,10 @@ export async function GET(request: NextRequest) {
 
     // Busca por publicKey (para rehydratação de auth)
     if (publicKey) {
-      const user = await prisma.user.findUnique({
-        where: { publicKey },
-        select: {
-          id: true,
-          nickname: true,
-          avatar: true,
-          status: true,
-          bio: true,
-          publicKey: true,
-          createdAt: true,
-          lastSeen: true,
-        },
-      });
+      const user = await userService.findByPublicKey(publicKey);
 
       if (user) {
-        return NextResponse.json([user]);
+        return NextResponse.json([userService.toApiFormat(user)]);
       }
       return NextResponse.json([]);
     }
@@ -42,29 +30,13 @@ export async function GET(request: NextRequest) {
       return NextResponse.json([]);
     }
 
-    const users = await prisma.user.findMany({
-      where: {
-        AND: [
-          { id: { not: userId } },
-          {
-            nickname: {
-              contains: search,
-              mode: 'insensitive',
-            },
-          },
-        ],
-      },
-      select: {
-        id: true,
-        nickname: true,
-        avatar: true,
-        status: true,
-        bio: true,
-      },
-      take: 10,
-    });
+    // Buscar por username ou nickname
+    const users = await userService.search(search, 10);
+    
+    // Filtrar o próprio usuário e não verificados
+    const filteredUsers = users.filter(u => u.id !== userId && u.emailVerified);
 
-    return NextResponse.json(users);
+    return NextResponse.json(filteredUsers.map(u => userService.toPublicFormat(u)));
   } catch (error) {
     console.error('Erro ao buscar usuários:', error);
     return NextResponse.json(

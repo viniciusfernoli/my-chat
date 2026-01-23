@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import { persist } from 'zustand/middleware';
+import { persist, createJSONStorage } from 'zustand/middleware';
 import { IUser } from '@/types';
 
 interface AuthState {
@@ -13,6 +13,7 @@ interface AuthState {
   isAuthenticated: boolean;
   isLoading: boolean;
   hasHydrated: boolean;
+  rememberMe: boolean;
 
   // Actions
   setUser: (user: IUser | null) => void;
@@ -21,10 +22,52 @@ interface AuthState {
   setKeyPair: (keyPair: { publicKey: string; secretKey: string } | null) => void;
   setLoading: (loading: boolean) => void;
   setHasHydrated: (state: boolean) => void;
-  login: (user: IUser, token: string, keyPair: { publicKey: string; secretKey: string }) => void;
+  setRememberMe: (remember: boolean) => void;
+  login: (user: IUser, token: string, keyPair: { publicKey: string; secretKey: string }, remember?: boolean) => void;
   logout: () => void;
   rehydrateAuth: () => Promise<void>;
 }
+
+// Storage que usa localStorage ou sessionStorage baseado no rememberMe
+const createCustomStorage = () => {
+  if (typeof window === 'undefined') {
+    return {
+      getItem: () => null,
+      setItem: () => {},
+      removeItem: () => {},
+    };
+  }
+
+  return {
+    getItem: (name: string) => {
+      // Tentar localStorage primeiro, depois sessionStorage
+      const localData = localStorage.getItem(name);
+      if (localData) return localData;
+      return sessionStorage.getItem(name);
+    },
+    setItem: (name: string, value: string) => {
+      // Verificar se devemos usar sessionStorage ou localStorage
+      try {
+        const parsed = JSON.parse(value);
+        if (parsed?.state?.rememberMe === false) {
+          // Se não quer lembrar, usar sessionStorage e limpar localStorage
+          localStorage.removeItem(name);
+          sessionStorage.setItem(name, value);
+        } else {
+          // Se quer lembrar, usar localStorage e limpar sessionStorage
+          sessionStorage.removeItem(name);
+          localStorage.setItem(name, value);
+        }
+      } catch {
+        localStorage.setItem(name, value);
+      }
+    },
+    removeItem: (name: string) => {
+      localStorage.removeItem(name);
+      sessionStorage.removeItem(name);
+    },
+  };
+};
 
 export const useAuthStore = create<AuthState>()(
   persist(
@@ -36,6 +79,7 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       isLoading: true,
       hasHydrated: false,
+      rememberMe: true,
 
       setUser: (user) => set({ user, isAuthenticated: !!user }),
       setToken: (token) => set({ token }),
@@ -43,17 +87,24 @@ export const useAuthStore = create<AuthState>()(
       setKeyPair: (keyPair) => set({ keyPair }),
       setLoading: (isLoading) => set({ isLoading }),
       setHasHydrated: (hasHydrated) => set({ hasHydrated }),
+      setRememberMe: (rememberMe) => set({ rememberMe }),
 
-      login: (user, token, keyPair) =>
+      login: (user, token, keyPair, remember = true) =>
         set({
           user,
           token,
           keyPair,
           isAuthenticated: true,
           isLoading: false,
+          rememberMe: remember,
         }),
 
-      logout: () =>
+      logout: () => {
+        // Limpar ambos os storages
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('auth-storage');
+          sessionStorage.removeItem('auth-storage');
+        }
         set({
           user: null,
           token: null,
@@ -61,7 +112,9 @@ export const useAuthStore = create<AuthState>()(
           keyPair: null,
           isAuthenticated: false,
           isLoading: false,
-        }),
+          rememberMe: true,
+        });
+      },
 
       rehydrateAuth: async () => {
         const { token, keyPair, user } = get();
@@ -118,10 +171,12 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
+      storage: createJSONStorage(() => createCustomStorage()),
       partialize: (state) => ({
         token: state.token,
         keyPair: state.keyPair,
         user: state.user,
+        rememberMe: state.rememberMe,
       }),
       onRehydrateStorage: () => (state) => {
         if (state) {

@@ -21,6 +21,7 @@ interface ChatState {
   
   setMessages: (conversationId: string, messages: IMessage[]) => void;
   addMessage: (conversationId: string, message: IMessage) => void;
+  prependMessages: (conversationId: string, messages: IMessage[]) => void;
   updateMessage: (conversationId: string, messageId: string, updates: Partial<IMessage>) => void;
   deleteMessage: (conversationId: string, messageId: string) => void;
   
@@ -128,7 +129,21 @@ export const useChatStore = create<ChatState>((set, get) => ({
     set((state) => {
       const newMessages = new Map(state.messages);
       const existing = newMessages.get(conversationId) || [];
+      // Evitar duplicatas
+      if (existing.some(m => m.id === message.id)) return state;
       newMessages.set(conversationId, [...existing, message]);
+      return { messages: newMessages };
+    }),
+
+  prependMessages: (conversationId, messagesToAdd) =>
+    set((state) => {
+      const newMessages = new Map(state.messages);
+      const existing = newMessages.get(conversationId) || [];
+      // Filtrar mensagens que já existem
+      const existingIds = new Set(existing.map(m => m.id));
+      const uniqueNewMessages = messagesToAdd.filter(m => !existingIds.has(m.id));
+      // Adicionar no início (mensagens mais antigas primeiro)
+      newMessages.set(conversationId, [...uniqueNewMessages, ...existing]);
       return { messages: newMessages };
     }),
   

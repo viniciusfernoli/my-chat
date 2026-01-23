@@ -38,6 +38,7 @@ export function MessageInput({
   const [uploadError, setUploadError] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const emojiButtonRef = useRef<HTMLButtonElement>(null);
 
   const handleImageSelect = useCallback(async (file: File) => {
     setUploadError(null);
@@ -248,6 +249,7 @@ export function MessageInput({
         <EmojiPicker
           onSelect={handleEmojiSelect}
           onClose={() => setShowEmojiPicker(false)}
+          triggerRef={emojiButtonRef}
         />
       )}
 
@@ -281,6 +283,7 @@ export function MessageInput({
             <Gift size={20} />
           </button>
           <button
+            ref={emojiButtonRef}
             type="button"
             onClick={() => {
               setShowEmojiPicker(!showEmojiPicker);

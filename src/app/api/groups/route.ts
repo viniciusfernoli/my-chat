@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db/prisma';
+import { conversationService, userService } from '@/lib/db/services';
 
 export async function POST(request: NextRequest) {
   try {
@@ -25,52 +25,15 @@ export async function POST(request: NextRequest) {
     const allParticipantIds = [...new Set([userId, ...participantIds])];
 
     // Criar o grupo
-    const group = await prisma.conversation.create({
-      data: {
-        name,
-        isGroup: true,
-        ownerId: userId,
-        participants: {
-          create: allParticipantIds.map(id => ({
-            userId: id,
-          })),
-        },
-      },
-      include: {
-        participants: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                nickname: true,
-                avatar: true,
-                publicKey: true,
-                status: true,
-              },
-            },
-          },
-        },
-      },
+    const group = await conversationService.create({
+      name,
+      isGroup: true,
+      ownerId: userId,
+      participantIds: allParticipantIds,
     });
 
-    // Formatar resposta
-    const formattedGroup = {
-      id: group.id,
-      name: group.name,
-      avatar: group.avatar,
-      isGroup: group.isGroup,
-      ownerId: group.ownerId,
-      participants: group.participants.map(p => ({
-        id: p.user.id,
-        nickname: p.user.nickname,
-        avatar: p.user.avatar,
-        publicKey: p.user.publicKey,
-        status: p.user.status,
-      })),
-      unreadCount: 0,
-      createdAt: group.createdAt,
-      updatedAt: group.updatedAt,
-    };
+    // Buscar participantes
+    const formattedGroup = await conversationService.toApiFormat(group);
 
     return NextResponse.json(formattedGroup);
   } catch (error) {
@@ -93,53 +56,16 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // Buscar apenas grupos do usuário
-    const conversations = await prisma.conversation.findMany({
-      where: {
-        isGroup: true,
-        participants: {
-          some: {
-            userId,
-          },
-        },
-      },
-      include: {
-        participants: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                nickname: true,
-                avatar: true,
-                publicKey: true,
-                status: true,
-              },
-            },
-          },
-        },
-      },
-      orderBy: {
-        updatedAt: 'desc',
-      },
-    });
+    // Buscar conversas do usuário
+    const conversations = await conversationService.findByUserId(userId);
+    
+    // Filtrar apenas grupos
+    const groups = conversations.filter(c => c.isGroup);
 
-    const formattedGroups = conversations.map(conv => ({
-      id: conv.id,
-      name: conv.name,
-      avatar: conv.avatar,
-      isGroup: conv.isGroup,
-      ownerId: conv.ownerId,
-      participants: conv.participants.map(p => ({
-        id: p.user.id,
-        nickname: p.user.nickname,
-        avatar: p.user.avatar,
-        publicKey: p.user.publicKey,
-        status: p.user.status,
-      })),
-      unreadCount: 0,
-      createdAt: conv.createdAt,
-      updatedAt: conv.updatedAt,
-    }));
+    // Formatar grupos
+    const formattedGroups = await Promise.all(
+      groups.map(group => conversationService.toApiFormat(group))
+    );
 
     return NextResponse.json({ groups: formattedGroups });
   } catch (error) {

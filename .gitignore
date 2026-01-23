@@ -29,6 +29,10 @@ yarn-error.log*
 .env*.local
 .env
 
+# Firebase credentials
+*-firebase-credentials.json
+firebase-credentials.json
+
 # vercel
 .vercel
 

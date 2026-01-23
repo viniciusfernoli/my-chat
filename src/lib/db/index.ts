@@ -1,1 +1,3 @@
-export { prisma } from './prisma';
+// Firebase exports
+export * from './firebase';
+export * from './services';

@@ -17,12 +17,16 @@ interface ChatWindowProps {
 
 export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
   const { user } = useAuthStore();
-  const { messages, addMessage, onlineUsers, updateMessage, setCurrentConversation } = useChatStore();
+  const { messages, addMessage, onlineUsers, updateMessage, setCurrentConversation, prependMessages } = useChatStore();
   const [replyTo, setReplyTo] = useState<IMessage | null>(null);
   const [isLoading, setIsLoading] = useState(false);
+  const [isLoadingMore, setIsLoadingMore] = useState(false);
+  const [hasMore, setHasMore] = useState(true);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [showGroupSettings, setShowGroupSettings] = useState(false);
   const { joinConversation, leaveConversation, sendMessage, startTyping, stopTyping, reactToMessage } = useSocket();
   const typingTimeout = useRef<NodeJS.Timeout | null>(null);
+  const loadedConversations = useRef(new Set<string>());
 
   // Encontrar o outro participante (ou participantes em grupo)
   const otherParticipant = conversation.participants.find(
@@ -36,13 +40,77 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
 
   const conversationMessages = messages.get(conversation.id) || [];
 
+  // Carregar mensagens iniciais
+  const loadInitialMessages = useCallback(async () => {
+    if (loadedConversations.current.has(conversation.id)) return;
+    
+    setIsLoading(true);
+    try {
+      const response = await fetch(`/api/conversations/${conversation.id}/messages?limit=20`, {
+        headers: {
+          'x-user-id': user?.id || '',
+        },
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        // Limpar e adicionar mensagens
+        if (data.messages && data.messages.length > 0) {
+          data.messages.forEach((msg: IMessage) => {
+            addMessage(conversation.id, msg);
+          });
+        }
+        setNextCursor(data.nextCursor);
+        setHasMore(data.hasMore || false);
+        loadedConversations.current.add(conversation.id);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar mensagens:', error);
+    } finally {
+      setIsLoading(false);
+    }
+  }, [conversation.id, user?.id, addMessage]);
+
+  // Carregar mais mensagens (scroll infinito)
+  const loadMoreMessages = useCallback(async () => {
+    if (isLoadingMore || !hasMore || !nextCursor) return;
+    
+    setIsLoadingMore(true);
+    try {
+      const response = await fetch(
+        `/api/conversations/${conversation.id}/messages?limit=20&cursor=${nextCursor}`,
+        {
+          headers: {
+            'x-user-id': user?.id || '',
+          },
+        }
+      );
+      
+      if (response.ok) {
+        const data = await response.json();
+        if (data.messages && data.messages.length > 0) {
+          // Prepend - adicionar no início da lista
+          prependMessages(conversation.id, data.messages);
+        }
+        setNextCursor(data.nextCursor);
+        setHasMore(data.hasMore || false);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar mais mensagens:', error);
+    } finally {
+      setIsLoadingMore(false);
+    }
+  }, [conversation.id, user?.id, isLoadingMore, hasMore, nextCursor, prependMessages]);
+
   // Entrar na sala da conversa ao abrir
   useEffect(() => {
     if (conversation.id) {
+      // Carregar mensagens iniciais
+      loadInitialMessages();
+      
       // Enviar participantIds para validação no servidor
       const participantIds = conversation.participants.map(p => p.id);
       joinConversation(conversation.id, participantIds);
-      setIsLoading(false);
     }
     
     return () => {
@@ -50,7 +118,7 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
         leaveConversation(conversation.id);
       }
     };
-  }, [conversation.id, conversation.participants, joinConversation, leaveConversation]);
+  }, [conversation.id, conversation.participants, joinConversation, leaveConversation, loadInitialMessages]);
 
   const handleSendMessage = async (
     content: string,
@@ -59,9 +127,12 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
   ) => {
     if (!user) return;
 
-    // Criar mensagem localmente (sem criptografia E2E para simplificar)
+    // ID temporário para a mensagem local
+    const tempId = `temp_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+
+    // Criar mensagem localmente (otimistic update)
     const newMessage: IMessage = {
-      id: `msg_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
+      id: tempId,
       conversationId: conversation.id,
       senderId: user.id,
       content: type === 'gif' ? 'GIF' : content,
@@ -74,6 +145,7 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
       reactions: [],
       sender: {
         id: user.id,
+        username: user.username || '',
         nickname: user.nickname,
         avatar: user.avatar,
         publicKey: user.publicKey || '',
@@ -86,12 +158,8 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
       } : undefined,
     };
 
-    // Adicionar mensagem localmente
+    // Adicionar mensagem localmente (optimistic update)
     addMessage(conversation.id, newMessage);
-    
-    // Enviar via WebSocket para todos os participantes
-    const participantIds = conversation.participants.map(p => p.id);
-    sendMessage(conversation.id, newMessage, participantIds);
     
     setReplyTo(null);
     
@@ -101,6 +169,46 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
       typingTimeout.current = null;
     }
     stopTyping(conversation.id);
+
+    try {
+      // Salvar mensagem no Firebase via API
+      const response = await fetch(`/api/conversations/${conversation.id}/messages`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user.id,
+        },
+        body: JSON.stringify({
+          encryptedContent: content, // Por enquanto sem criptografia E2E
+          nonce: 'placeholder', // Placeholder para manter compatibilidade
+          type,
+          mediaUrl: type === 'image' ? mediaUrl : undefined,
+          gifUrl: type === 'gif' ? mediaUrl : undefined,
+          replyToId: replyTo?.id,
+        }),
+      });
+
+      if (response.ok) {
+        const savedMessage = await response.json();
+        
+        // Atualizar ID da mensagem local com o ID real do Firebase
+        updateMessage(conversation.id, tempId, { 
+          id: savedMessage.id,
+          createdAt: savedMessage.createdAt,
+          updatedAt: savedMessage.updatedAt,
+        });
+
+        // Enviar via WebSocket para todos os participantes (com ID real)
+        const participantIds = conversation.participants.map(p => p.id);
+        sendMessage(conversation.id, { ...newMessage, id: savedMessage.id }, participantIds);
+      } else {
+        console.error('[CHAT] Erro ao salvar mensagem:', await response.text());
+        // TODO: Marcar mensagem como falha ou remover
+      }
+    } catch (error) {
+      console.error('[CHAT] Erro ao salvar mensagem:', error);
+      // TODO: Marcar mensagem como falha ou remover
+    }
   };
 
   const handleTyping = useCallback(() => {
@@ -150,6 +258,20 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
 
     // Enviar via WebSocket
     reactToMessage(conversation.id, messageId, emoji);
+
+    // Salvar reação no Firebase
+    try {
+      await fetch(`/api/conversations/${conversation.id}/messages/${messageId}/reactions`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': user.id,
+        },
+        body: JSON.stringify({ emoji }),
+      });
+    } catch (error) {
+      console.error('[CHAT] Erro ao salvar reação:', error);
+    }
   };
 
   // Nome da conversa (grupo ou pessoa)
@@ -231,6 +353,9 @@ export function ChatWindow({ conversation, onBack }: ChatWindowProps) {
       <MessageList
         messages={conversationMessages}
         isLoading={isLoading}
+        isLoadingMore={isLoadingMore}
+        hasMore={hasMore}
+        onLoadMore={loadMoreMessages}
         onReply={setReplyTo}
         onReact={handleReact}
       />

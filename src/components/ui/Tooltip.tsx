@@ -1,12 +1,12 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
 import { cn } from '@/lib/utils';
 
 export interface TooltipProps {
-  content: string;
-  children: React.ReactNode;
+  content: ReactNode;
+  children: ReactNode;
   position?: 'top' | 'bottom' | 'left' | 'right';
   delay?: number;
 }

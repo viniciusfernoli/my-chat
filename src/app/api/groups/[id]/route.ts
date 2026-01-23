@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db/prisma';
+import { conversationService, toISOString } from '@/lib/db/services';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -16,54 +16,17 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const group = await prisma.conversation.findFirst({
-      where: {
-        id,
-        isGroup: true,
-        participants: {
-          some: { userId },
-        },
-      },
-      include: {
-        participants: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                nickname: true,
-                avatar: true,
-                publicKey: true,
-                status: true,
-              },
-            },
-          },
-        },
-      },
-    });
+    const group = await conversationService.findById(id);
 
-    if (!group) {
+    if (!group || !group.isGroup || !group.participantIds.includes(userId)) {
       return NextResponse.json(
         { error: 'Grupo não encontrado' },
         { status: 404 }
       );
     }
 
-    return NextResponse.json({
-      id: group.id,
-      name: group.name,
-      avatar: group.avatar,
-      isGroup: group.isGroup,
-      ownerId: group.ownerId,
-      participants: group.participants.map(p => ({
-        id: p.user.id,
-        nickname: p.user.nickname,
-        avatar: p.user.avatar,
-        publicKey: p.user.publicKey,
-        status: p.user.status,
-      })),
-      createdAt: group.createdAt,
-      updatedAt: group.updatedAt,
-    });
+    const formattedGroup = await conversationService.toApiFormat(group);
+    return NextResponse.json(formattedGroup);
   } catch (error) {
     console.error('Erro ao buscar grupo:', error);
     return NextResponse.json(
@@ -89,60 +52,31 @@ export async function PATCH(request: NextRequest, { params }: RouteParams) {
     const { name, avatar } = await request.json();
 
     // Verificar se é o dono do grupo
-    const group = await prisma.conversation.findFirst({
-      where: {
-        id,
-        isGroup: true,
-        ownerId: userId,
-      },
-    });
+    const group = await conversationService.findById(id);
 
-    if (!group) {
+    if (!group || !group.isGroup || group.ownerId !== userId) {
       return NextResponse.json(
         { error: 'Você não tem permissão para editar este grupo' },
         { status: 403 }
       );
     }
 
-    const updatedGroup = await prisma.conversation.update({
-      where: { id },
-      data: {
-        ...(name && { name }),
-        ...(avatar !== undefined && { avatar }),
-      },
-      include: {
-        participants: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                nickname: true,
-                avatar: true,
-                publicKey: true,
-                status: true,
-              },
-            },
-          },
-        },
-      },
-    });
+    // Atualizar
+    const updateData: Record<string, unknown> = {};
+    if (name) updateData.name = name;
+    if (avatar !== undefined) updateData.avatar = avatar;
 
-    return NextResponse.json({
-      id: updatedGroup.id,
-      name: updatedGroup.name,
-      avatar: updatedGroup.avatar,
-      isGroup: updatedGroup.isGroup,
-      ownerId: updatedGroup.ownerId,
-      participants: updatedGroup.participants.map(p => ({
-        id: p.user.id,
-        nickname: p.user.nickname,
-        avatar: p.user.avatar,
-        publicKey: p.user.publicKey,
-        status: p.user.status,
-      })),
-      createdAt: updatedGroup.createdAt,
-      updatedAt: updatedGroup.updatedAt,
-    });
+    const updatedGroup = await conversationService.update(id, updateData);
+
+    if (!updatedGroup) {
+      return NextResponse.json(
+        { error: 'Erro ao atualizar grupo' },
+        { status: 500 }
+      );
+    }
+
+    const formattedGroup = await conversationService.toApiFormat(updatedGroup);
+    return NextResponse.json(formattedGroup);
   } catch (error) {
     console.error('Erro ao atualizar grupo:', error);
     return NextResponse.json(
@@ -166,24 +100,16 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     // Verificar se é o dono do grupo
-    const group = await prisma.conversation.findFirst({
-      where: {
-        id,
-        isGroup: true,
-        ownerId: userId,
-      },
-    });
+    const group = await conversationService.findById(id);
 
-    if (!group) {
+    if (!group || !group.isGroup || group.ownerId !== userId) {
       return NextResponse.json(
         { error: 'Você não tem permissão para deletar este grupo' },
         { status: 403 }
       );
     }
 
-    await prisma.conversation.delete({
-      where: { id },
-    });
+    await conversationService.delete(id);
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { userService, toISOString } from '@/lib/db/services';
 
 // Buscar perfil
 export async function GET(
@@ -9,19 +9,7 @@ export async function GET(
   try {
     const { id } = await params;
     
-    const user = await prisma.user.findUnique({
-      where: { id },
-      select: {
-        id: true,
-        nickname: true,
-        avatar: true,
-        status: true,
-        bio: true,
-        publicKey: true,
-        createdAt: true,
-        lastSeen: true,
-      },
-    });
+    const user = await userService.findById(id);
 
     if (!user) {
       return NextResponse.json(
@@ -30,7 +18,7 @@ export async function GET(
       );
     }
 
-    return NextResponse.json(user);
+    return NextResponse.json(userService.toPublicFormat(user));
   } catch (error) {
     console.error('Erro ao buscar usuário:', error);
     return NextResponse.json(
@@ -74,44 +62,26 @@ export async function PATCH(
       );
     }
 
-    // Verificar se nickname já está em uso
-    if (nickname) {
-      const existing = await prisma.user.findFirst({
-        where: {
-          nickname,
-          id: { not: id },
-        },
-      });
+    // Verificar se nickname já está em uso (nicknames podem repetir, mas vamos verificar mesmo assim)
+    // Nota: Na nova lógica, nicknames podem repetir, então removemos essa verificação
 
-      if (existing) {
-        return NextResponse.json(
-          { error: 'Este apelido já está em uso' },
-          { status: 409 }
-        );
-      }
+    // Preparar dados para atualização
+    const updateData: Record<string, unknown> = {};
+    if (nickname) updateData.nickname = nickname;
+    if (avatar !== undefined) updateData.avatar = avatar;
+    if (bio !== undefined) updateData.bio = bio;
+    if (status) updateData.status = status;
+
+    const updatedUser = await userService.update(id, updateData);
+
+    if (!updatedUser) {
+      return NextResponse.json(
+        { error: 'Usuário não encontrado' },
+        { status: 404 }
+      );
     }
 
-    const user = await prisma.user.update({
-      where: { id },
-      data: {
-        ...(nickname && { nickname }),
-        ...(avatar !== undefined && { avatar }),
-        ...(bio !== undefined && { bio }),
-        ...(status && { status }),
-      },
-      select: {
-        id: true,
-        nickname: true,
-        avatar: true,
-        status: true,
-        bio: true,
-        publicKey: true,
-        createdAt: true,
-        lastSeen: true,
-      },
-    });
-
-    return NextResponse.json(user);
+    return NextResponse.json(userService.toPublicFormat(updatedUser));
   } catch (error) {
     console.error('Erro ao atualizar usuário:', error);
     return NextResponse.json(

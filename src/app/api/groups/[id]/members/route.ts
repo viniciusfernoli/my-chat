@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db/prisma';
+import { conversationService, userService } from '@/lib/db/services';
 
 type RouteParams = { params: Promise<{ id: string }> };
 
@@ -16,48 +16,22 @@ export async function GET(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    const group = await prisma.conversation.findFirst({
-      where: {
-        id,
-        isGroup: true,
-        participants: {
-          some: { userId },
-        },
-      },
-      include: {
-        participants: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                nickname: true,
-                avatar: true,
-                publicKey: true,
-                status: true,
-                bio: true,
-              },
-            },
-          },
-        },
-      },
-    });
+    const group = await conversationService.findById(id);
 
-    if (!group) {
+    if (!group || !group.isGroup || !group.participantIds.includes(userId)) {
       return NextResponse.json(
         { error: 'Grupo não encontrado' },
         { status: 404 }
       );
     }
 
+    // Buscar participantes
+    const participants = await conversationService.getParticipants(id);
+
     return NextResponse.json({
-      members: group.participants.map(p => ({
-        id: p.user.id,
-        nickname: p.user.nickname,
-        avatar: p.user.avatar,
-        publicKey: p.user.publicKey,
-        status: p.user.status,
-        bio: p.user.bio,
-        isOwner: p.user.id === group.ownerId,
+      members: participants.map(p => ({
+        ...userService.toPublicFormat(p),
+        isOwner: p.id === group.ownerId,
       })),
       ownerId: group.ownerId,
     });
@@ -92,21 +66,10 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Verificar se é o dono do grupo ou participante (pode adicionar)
-    const group = await prisma.conversation.findFirst({
-      where: {
-        id,
-        isGroup: true,
-        participants: {
-          some: { userId },
-        },
-      },
-      include: {
-        participants: true,
-      },
-    });
+    // Verificar se é participante do grupo
+    const group = await conversationService.findById(id);
 
-    if (!group) {
+    if (!group || !group.isGroup || !group.participantIds.includes(userId)) {
       return NextResponse.json(
         { error: 'Grupo não encontrado' },
         { status: 404 }
@@ -114,8 +77,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Verificar se o usuário já é membro
-    const existingMember = group.participants.find(p => p.userId === memberId);
-    if (existingMember) {
+    if (group.participantIds.includes(memberId)) {
       return NextResponse.json(
         { error: 'Usuário já é membro do grupo' },
         { status: 400 }
@@ -123,16 +85,7 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Verificar se o usuário existe
-    const newMember = await prisma.user.findUnique({
-      where: { id: memberId },
-      select: {
-        id: true,
-        nickname: true,
-        avatar: true,
-        publicKey: true,
-        status: true,
-      },
-    });
+    const newMember = await userService.findById(memberId);
 
     if (!newMember) {
       return NextResponse.json(
@@ -142,16 +95,11 @@ export async function POST(request: NextRequest, { params }: RouteParams) {
     }
 
     // Adicionar membro
-    await prisma.conversationParticipant.create({
-      data: {
-        conversationId: id,
-        userId: memberId,
-      },
-    });
+    await conversationService.addParticipant(id, memberId);
 
     return NextResponse.json({
       success: true,
-      member: newMember,
+      member: userService.toPublicFormat(newMember),
     });
   } catch (error) {
     console.error('Erro ao adicionar membro:', error);
@@ -185,15 +133,10 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
       );
     }
 
-    // Verificar se é o dono do grupo
-    const group = await prisma.conversation.findFirst({
-      where: {
-        id,
-        isGroup: true,
-      },
-    });
+    // Buscar grupo
+    const group = await conversationService.findById(id);
 
-    if (!group) {
+    if (!group || !group.isGroup) {
       return NextResponse.json(
         { error: 'Grupo não encontrado' },
         { status: 404 }
@@ -217,14 +160,7 @@ export async function DELETE(request: NextRequest, { params }: RouteParams) {
     }
 
     // Remover membro
-    await prisma.conversationParticipant.delete({
-      where: {
-        conversationId_userId: {
-          conversationId: id,
-          userId: memberId,
-        },
-      },
-    });
+    await conversationService.removeParticipant(id, memberId);
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { conversationService, messageService, userService } from '@/lib/db/services';
 
-// Buscar mensagens de uma conversa
+// Buscar mensagens de uma conversa com PAGINAÇÃO (lazy loading)
 export async function GET(
   request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
@@ -18,14 +18,9 @@ export async function GET(
     }
 
     // Verificar se usuário é participante
-    const participant = await prisma.conversationParticipant.findFirst({
-      where: {
-        conversationId: id,
-        userId,
-      },
-    });
-
-    if (!participant) {
+    const conversation = await conversationService.findById(id);
+    
+    if (!conversation || !conversation.participantIds.includes(userId)) {
       return NextResponse.json(
         { error: 'Acesso negado' },
         { status: 403 }
@@ -34,57 +29,22 @@ export async function GET(
 
     const url = new URL(request.url);
     const cursor = url.searchParams.get('cursor');
-    const limit = parseInt(url.searchParams.get('limit') || '50');
+    const limit = parseInt(url.searchParams.get('limit') || '20');
 
-    const messages = await prisma.message.findMany({
-      where: { conversationId: id },
-      take: limit + 1,
-      ...(cursor && {
-        cursor: { id: cursor },
-        skip: 1,
-      }),
-      orderBy: { createdAt: 'desc' },
-      include: {
-        sender: {
-          select: {
-            id: true,
-            nickname: true,
-            avatar: true,
-            publicKey: true,
-          },
-        },
-        reactions: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                nickname: true,
-              },
-            },
-          },
-        },
-        replyTo: {
-          select: {
-            id: true,
-            encryptedContent: true,
-            nonce: true,
-            sender: {
-              select: {
-                id: true,
-                nickname: true,
-              },
-            },
-          },
-        },
-      },
+    // Buscar mensagens com paginação
+    const result = await messageService.getByConversationPaginated(id, {
+      limit,
+      cursor: cursor || undefined,
+      direction: 'before',
     });
 
-    const hasMore = messages.length > limit;
-    const items = hasMore ? messages.slice(0, -1) : messages;
+    // Converter para formato da API (com batch para eficiência)
+    const formattedMessages = await messageService.toApiFormatBatch(result.messages);
 
     return NextResponse.json({
-      messages: items.reverse(),
-      nextCursor: hasMore ? items[items.length - 1].id : null,
+      messages: formattedMessages.reverse(), // Mais antigas primeiro para exibição
+      nextCursor: result.nextCursor,
+      hasMore: result.hasMore,
     });
   } catch (error) {
     console.error('Erro ao buscar mensagens:', error);
@@ -112,14 +72,9 @@ export async function POST(
     }
 
     // Verificar se usuário é participante
-    const participant = await prisma.conversationParticipant.findFirst({
-      where: {
-        conversationId: id,
-        userId,
-      },
-    });
-
-    if (!participant) {
+    const conversation = await conversationService.findById(id);
+    
+    if (!conversation || !conversation.participantIds.includes(userId)) {
       return NextResponse.json(
         { error: 'Acesso negado' },
         { status: 403 }
@@ -136,50 +91,34 @@ export async function POST(
       );
     }
 
-    const message = await prisma.message.create({
-      data: {
-        conversationId: id,
-        senderId: userId,
-        encryptedContent,
+    // Criar mensagem (armazenamos o conteúdo criptografado)
+    const message = await messageService.create({
+      conversationId: id,
+      senderId: userId,
+      content: encryptedContent, // Conteúdo criptografado
+      type: type as 'text' | 'image' | 'gif' | 'file' | 'audio' | 'video',
+      replyToId,
+      metadata: {
         nonce,
-        type,
         mediaUrl,
         gifUrl,
-        replyToId,
-      },
-      include: {
-        sender: {
-          select: {
-            id: true,
-            nickname: true,
-            avatar: true,
-            publicKey: true,
-          },
-        },
-        reactions: true,
-        replyTo: {
-          select: {
-            id: true,
-            encryptedContent: true,
-            nonce: true,
-            sender: {
-              select: {
-                id: true,
-                nickname: true,
-              },
-            },
-          },
-        },
       },
     });
 
-    // Atualizar data da conversa
-    await prisma.conversation.update({
-      where: { id },
-      data: { updatedAt: new Date() },
-    });
+    // Buscar dados do sender
+    const sender = await userService.findById(userId);
 
-    return NextResponse.json(message);
+    // Formatar resposta
+    const formattedMessage = await messageService.toApiFormat(message);
+
+    return NextResponse.json({
+      ...formattedMessage,
+      // Manter compatibilidade com formato antigo
+      encryptedContent,
+      nonce,
+      mediaUrl,
+      gifUrl,
+    });
   } catch (error) {
     console.error('Erro ao enviar mensagem:', error);
     return NextResponse.json(

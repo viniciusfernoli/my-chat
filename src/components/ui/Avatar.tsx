@@ -2,13 +2,16 @@
 
 import Image from 'next/image';
 import { cn, getInitials } from '@/lib/utils';
+import { Tooltip } from './Tooltip';
 
 export interface AvatarProps {
   src?: string | null;
   alt?: string;
-  name?: string;
+  name?: string;        // Nickname (exibido)
+  username?: string;    // Username (mostrado no hover)
   size?: 'xs' | 'sm' | 'md' | 'lg' | 'xl';
   status?: 'online' | 'offline' | 'away' | 'busy';
+  showTooltip?: boolean;
   className?: string;
 }
 
@@ -39,13 +42,15 @@ export function Avatar({
   src,
   alt = 'Avatar',
   name,
+  username,
   size = 'md',
   status,
+  showTooltip = false,
   className,
 }: AvatarProps) {
   const initials = name ? getInitials(name) : '?';
 
-  return (
+  const avatarContent = (
     <div className={cn('relative inline-block', className)}>
       <div
         className={cn(
@@ -76,4 +81,24 @@ export function Avatar({
       )}
     </div>
   );
+
+  // Se showTooltip e tiver username, mostrar tooltip com info do usuário
+  if (showTooltip && (name || username)) {
+    const tooltipContent = (
+      <div className="text-center">
+        <div className="font-medium text-white">{name}</div>
+        {username && (
+          <div className="text-xs text-dark-400">@{username}</div>
+        )}
+      </div>
+    );
+
+    return (
+      <Tooltip content={tooltipContent}>
+        {avatarContent}
+      </Tooltip>
+    );
+  }
+
+  return avatarContent;
 }

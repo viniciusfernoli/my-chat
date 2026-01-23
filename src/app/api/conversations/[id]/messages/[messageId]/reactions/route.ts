@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { prisma } from '@/lib/db';
+import { conversationService, messageService, userService } from '@/lib/db/services';
 
 // Adicionar reação
 export async function POST(
@@ -18,14 +18,9 @@ export async function POST(
     }
 
     // Verificar se usuário é participante
-    const participant = await prisma.conversationParticipant.findFirst({
-      where: {
-        conversationId: id,
-        userId,
-      },
-    });
-
-    if (!participant) {
+    const conversation = await conversationService.findById(id);
+    
+    if (!conversation || !conversation.participantIds.includes(userId)) {
       return NextResponse.json(
         { error: 'Acesso negado' },
         { status: 403 }
@@ -43,41 +38,28 @@ export async function POST(
     }
 
     // Verificar se já existe reação
-    const existingReaction = await prisma.reaction.findFirst({
-      where: {
-        messageId,
-        userId,
-        emoji,
-      },
-    });
+    const existingReactions = await messageService.getReactions(messageId);
+    const existingReaction = existingReactions.find(
+      r => r.userId === userId && r.emoji === emoji
+    );
 
     if (existingReaction) {
       // Remover reação existente
-      await prisma.reaction.delete({
-        where: { id: existingReaction.id },
-      });
-
+      await messageService.removeReaction(messageId, userId, emoji);
       return NextResponse.json({ removed: true });
     }
 
     // Adicionar nova reação
-    const reaction = await prisma.reaction.create({
-      data: {
-        messageId,
-        userId,
-        emoji,
-      },
-      include: {
-        user: {
-          select: {
-            id: true,
-            nickname: true,
-          },
-        },
-      },
-    });
+    const reaction = await messageService.addReaction(messageId, userId, emoji);
+    const user = await userService.findById(userId);
 
-    return NextResponse.json(reaction);
+    return NextResponse.json({
+      id: reaction.id,
+      messageId: reaction.messageId,
+      userId: reaction.userId,
+      emoji: reaction.emoji,
+      user: user ? { id: user.id, nickname: user.nickname } : null,
+    });
   } catch (error) {
     console.error('Erro ao adicionar reação:', error);
     return NextResponse.json(
