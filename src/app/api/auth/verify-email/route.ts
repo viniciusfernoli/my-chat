@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { userService, toISOString } from '@/lib/db/services';
+import { adminAuth } from '@/lib/db/firebase';
 import nacl from 'tweetnacl';
 import { encodeBase64 } from 'tweetnacl-util';
 
@@ -75,6 +76,18 @@ export async function POST(request: NextRequest) {
     // Gerar token
     const token = encodeBase64(nacl.randomBytes(32));
 
+    // Gerar Custom Token do Firebase para autenticação no Realtime Database
+    let firebaseToken: string | null = null;
+    try {
+      firebaseToken = await adminAuth.createCustomToken(updatedUser!.id, {
+        username: updatedUser!.username,
+        nickname: updatedUser!.nickname,
+      });
+    } catch (error) {
+      console.error('[VerifyEmail] Erro ao gerar Firebase Custom Token:', error);
+      // Não bloquear verificação se Firebase Auth falhar
+    }
+
     // Gerar keyPair para retornar (o cliente precisa para criptografia)
     // Nota: Em produção, o cliente deveria guardar isso localmente
     const keyPair = {
@@ -97,6 +110,7 @@ export async function POST(request: NextRequest) {
         lastSeen: toISOString(updatedUser!.lastSeen),
       },
       token,
+      firebaseToken,
       keyPair,
     });
   } catch (error) {

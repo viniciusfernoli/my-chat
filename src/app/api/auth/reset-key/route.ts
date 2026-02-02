@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { userService } from '@/lib/db/services';
+import { adminAuth } from '@/lib/db/firebase';
 import nacl from 'tweetnacl';
 import { encodeBase64 } from 'tweetnacl-util';
 import jwt from 'jsonwebtoken';
@@ -88,6 +89,17 @@ export async function POST(request: NextRequest) {
       { expiresIn: '30d' }
     );
 
+    // Gerar Custom Token do Firebase
+    let firebaseToken: string | null = null;
+    try {
+      firebaseToken = await adminAuth.createCustomToken(user.id, {
+        username: user.username,
+        nickname: user.nickname,
+      });
+    } catch (error) {
+      console.error('[ResetKey] Erro ao gerar Firebase Custom Token:', error);
+    }
+
     console.log('[AUTH] Chave recuperada com sucesso para:', user.username);
 
     return NextResponse.json({
@@ -103,6 +115,7 @@ export async function POST(request: NextRequest) {
         status: user.status,
       },
       token,
+      firebaseToken,
       keyPair: {
         publicKey,
       },

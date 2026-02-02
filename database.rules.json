@@ -1,0 +1,124 @@
+{
+  "rules": {
+    "presence": {
+      ".read": "auth != null",
+      
+      "$userId": {
+        ".write": "auth != null && auth.uid === $userId",
+        
+        "online": {
+          ".validate": "newData.isBoolean()"
+        },
+        "status": {
+          ".validate": "newData.isString()"
+        },
+        "lastSeen": {
+          ".validate": "newData.val() === now || newData.isNumber()"
+        },
+        "nickname": {
+          ".validate": "newData.isString()"
+        },
+        "avatar": {
+          ".validate": "newData.isString() || !newData.exists()"
+        },
+        "connections": {
+          "$connectionId": {
+            ".validate": "newData.isBoolean()"
+          }
+        }
+      }
+    },
+    
+    "typing": {
+      "$conversationId": {
+        ".read": "auth != null",
+        
+        "$userId": {
+          ".write": "auth != null && auth.uid === $userId",
+          
+          "isTyping": {
+            ".validate": "newData.isBoolean()"
+          },
+          "timestamp": {
+            ".validate": "newData.val() === now || newData.isNumber()"
+          },
+          "nickname": {
+            ".validate": "newData.isString()"
+          },
+          "userId": {
+            ".validate": "newData.isString() && newData.val() === $userId"
+          }
+        }
+      }
+    },
+    
+    "conversationMembers": {
+      "$conversationId": {
+        ".read": "auth != null",
+        
+        "$userId": {
+          ".write": "auth != null && auth.uid === $userId",
+          ".validate": "newData.isBoolean() || !newData.exists()"
+        }
+      }
+    },
+    
+    "notifications": {
+      "$userId": {
+        ".read": "auth != null && auth.uid === $userId",
+        
+        "$notificationId": {
+          ".write": "auth != null",
+          
+          "type": {
+            ".validate": "newData.isString()"
+          },
+          "conversationId": {
+            ".validate": "newData.isString()"
+          },
+          "data": {
+            ".validate": "true"
+          },
+          "message": {
+            ".validate": "true"
+          },
+          "senderId": {
+            ".validate": "newData.isString()"
+          },
+          "timestamp": {
+            ".validate": "newData.val() === now || newData.isNumber()"
+          },
+          "read": {
+            ".write": "auth != null && auth.uid === $userId",
+            ".validate": "newData.isBoolean()"
+          }
+        }
+      }
+    },
+    
+    "groupUpdates": {
+      "$conversationId": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        
+        "name": {
+          ".validate": "newData.isString()"
+        },
+        "avatar": {
+          ".validate": "newData.isString()"
+        },
+        "updatedAt": {
+          ".validate": "newData.val() === now || newData.isNumber()"
+        },
+        "updatedBy": {
+          ".validate": "newData.isString()"
+        }
+      }
+    },
+
+    "$other": {
+      ".read": false,
+      ".write": false
+    }
+  }
+}

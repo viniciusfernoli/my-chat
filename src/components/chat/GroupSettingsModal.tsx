@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Users, X, Check, Search, Settings, Trash2, UserPlus, UserMinus, Crown, Edit2 } from 'lucide-react';
 import { Modal, Input, Button, Avatar, Spinner } from '@/components/ui';
 import { useAuthStore, useChatStore } from '@/stores';
-import { useSocket } from '@/providers/SocketProvider';
+import { useSocket } from '@/providers/RealtimeProvider';
 import { IUser, IConversation } from '@/types';
 
 interface GroupSettingsModalProps {

@@ -1,5 +1,7 @@
 import admin from 'firebase-admin';
 import { getFirestore } from 'firebase-admin/firestore';
+import { getDatabase } from 'firebase-admin/database';
+import { getAuth } from 'firebase-admin/auth';
 
 // Inicializar Firebase Admin SDK
 function initializeFirebase() {
@@ -21,8 +23,15 @@ function initializeFirebase() {
     throw new Error('Erro ao parsear FIREBASE_CREDENTIALS: JSON inválido');
   }
 
+  // URL do Realtime Database
+  const databaseURL = process.env.FIREBASE_DATABASE_URL;
+  if (!databaseURL) {
+    console.warn('[Firebase] FIREBASE_DATABASE_URL não definida. Realtime Database não estará disponível.');
+  }
+
   return admin.initializeApp({
     credential: admin.credential.cert(serviceAccount),
+    databaseURL: databaseURL,
   });
 }
 
@@ -31,6 +40,12 @@ const app = initializeFirebase();
 
 // Exportar Firestore
 export const db = getFirestore(app);
+
+// Exportar Realtime Database
+export const realtimeDb = process.env.FIREBASE_DATABASE_URL ? getDatabase(app) : null;
+
+// Exportar Auth (para gerar Custom Tokens)
+export const adminAuth = getAuth(app);
 
 // Configurar Firestore apenas uma vez
 let firestoreSettingsApplied = false;

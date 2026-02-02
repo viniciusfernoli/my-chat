@@ -82,7 +82,12 @@ export default function AuthPage() {
         return;
       }
 
-      login(data.user, data.token, data.keyPair, rememberMe);
+      // Regenerar keyPair (necessário para criptografia E2E)
+      // Nota: Em produção, o keyPair deveria ser derivado da secretKey de forma determinística
+      const keyPair = generateKeyPair();
+      
+      // Login com firebaseToken para autenticação no Realtime Database
+      await login(data.user, data.token, keyPair, rememberMe, data.firebaseToken);
       router.push('/chat');
     } catch {
       setError('Erro ao conectar com o servidor');
@@ -161,7 +166,8 @@ export default function AuthPage() {
         return;
       }
 
-      login(data.user, data.token, keyPair);
+      // Login com firebaseToken (se disponível após registro)
+      await login(data.user, data.token, keyPair, rememberMe, data.firebaseToken);
       router.push('/chat');
     } catch {
       setError('Erro ao conectar com o servidor');
@@ -199,7 +205,11 @@ export default function AuthPage() {
         return;
       }
 
-      login(data.user, data.token, data.keyPair);
+      // Regenerar keyPair (necessário para criptografia E2E)
+      const keyPair = generateKeyPair();
+      
+      // Login com firebaseToken para autenticação no Realtime Database
+      await login(data.user, data.token, keyPair, rememberMe, data.firebaseToken);
       router.push('/chat');
     } catch {
       setError('Erro ao conectar com o servidor');
@@ -312,8 +322,8 @@ export default function AuthPage() {
       setNewKeyGenerated(data.newSecretKey);
       setSuccess('Nova chave gerada com sucesso!');
       
-      // Fazer login automaticamente
-      login(data.user, data.token, keyPair);
+      // Fazer login automaticamente com firebaseToken
+      await login(data.user, data.token, keyPair, rememberMe, data.firebaseToken);
     } catch {
       setError('Erro ao conectar com o servidor');
     } finally {

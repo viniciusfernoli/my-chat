@@ -6,7 +6,7 @@ import { MessageSquare, Plus, Settings, LogOut, Search, Users } from 'lucide-rea
 import { Avatar, Button, Input, Spinner } from '@/components/ui';
 import { ConversationList, ChatWindow, NewChatModal, CreateGroupModal, StatusSelector, NotificationPrompt } from '@/components/chat';
 import { useAuthStore, useChatStore } from '@/stores';
-import { useSocket } from '@/providers/SocketProvider';
+import { useSocket } from '@/providers/RealtimeProvider';
 import { IConversation } from '@/types';
 import { cn } from '@/lib/utils';
 
